@@ -56,7 +56,7 @@ h1 { font-size: 14px; line-height: 1; letter-spacing: .13em; font-weight: 800; }
 .arena-heading h2 span { color: var(--teal); }
 .comms { display: flex; align-items: center; gap: 5px; color: var(--teal); font-size: 9px; letter-spacing: .12em; }
 .arena-frame { margin: 0 7px; position: relative; border: 1px solid #1d372f; background: #091110; overflow: hidden; }
-.arena-svg { display: block; width: 100%; height: auto; min-height: 320px; touch-action: manipulation; }
+.arena-canvas { display: block; width: 100%; height: auto; min-height: 320px; touch-action: manipulation; image-rendering: auto; cursor: crosshair; }
 .grid-cell { cursor: pointer; transition: filter .16s ease; }
 .grid-cell:hover polygon { filter: brightness(1.28); }
 .grid-blocked { cursor: not-allowed; }
