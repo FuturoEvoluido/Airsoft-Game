@@ -166,7 +166,7 @@ export default function ArenaCanvas({ state, mode, moveArmed, hovered, shotPulse
     });
 
     drawOperator(context, toScreen({ x: current.player.x, y: current.player.y }), "player", toScreen(to), current.player.name, current.loadout.uniform, current.loadout.weapon);
-    drawOperator(context, toScreen({ x: current.enemy.x, y: current.enemy.y }), "enemy", toScreen(from), current.enemy.name, "all-black", "m4");
+    drawOperator(context, toScreen({ x: current.enemy.x, y: current.enemy.y }), "enemy", toScreen(from), current.enemyLoadout.operatorName, current.enemyLoadout.uniform, current.enemyLoadout.weapon);
 
     if (fxProgress > 0 && current.lastShot) {
       const start = toScreen(from);

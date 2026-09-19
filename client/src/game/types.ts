@@ -15,6 +15,11 @@ export interface Loadout {
   weapon: WeaponId;
 }
 
+export interface RivalProfile extends Loadout {
+  rankLabel: string;
+  score: number;
+}
+
 export interface Obstacle {
   id: string;
   x: number;
@@ -50,6 +55,8 @@ export interface GameState {
   winner: ActorKind | null;
   player: Operator;
   enemy: Operator;
+  enemyLoadout: RivalProfile;
+  isChallenge: boolean;
   loadout: Loadout;
   pa: number;
   maxPa: number;

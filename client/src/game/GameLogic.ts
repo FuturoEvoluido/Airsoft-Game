@@ -1,8 +1,9 @@
-import type { ActionId, Coord, GameState, Loadout, Obstacle, ShotResult } from "./types";
+import type { ActionId, Coord, GameState, Loadout, Obstacle, RivalProfile, ShotResult } from "./types";
 
 export const GRID_SIZE = 8;
 export const MAX_PA = 5;
 export const DEFAULT_LOADOUT: Loadout = { operatorName: "ALFA-01", teamName: "NIGHTFALL", patch: "☢", uniform: "multicam", vest: "heavy", weapon: "m4" };
+export const DEFAULT_RIVAL: RivalProfile = { operatorName: "HOSTIL-07", teamName: "RED CELL", patch: "⚡", uniform: "all-black", vest: "heavy", weapon: "m4", rankLabel: "HOSTIL", score: 0 };
 
 export const loadoutStats = (loadout: Loadout) => {
   const maxPa = loadout.vest === "light" ? 6 : 5;
@@ -27,6 +28,8 @@ const neighbors = (point: Coord): Coord[] => [
   { x: point.x, y: point.y + 1 },
   { x: point.x, y: point.y - 1 },
 ].filter(isInside);
+
+const isFullCoverPosition = (point: Coord) => OBSTACLES.some((obstacle) => obstacle.type === "full" && Math.abs(obstacle.x - point.x) + Math.abs(obstacle.y - point.y) === 1);
 
 export const obstacleAt = (point: Coord) => OBSTACLES.find((obstacle) => obstacle.x === point.x && obstacle.y === point.y);
 export const coverPenaltyAt = (point: Coord) => {
@@ -85,13 +88,15 @@ const nextRandom = (state: GameState) => {
 const appendLog = (state: GameState, message: string): string[] => [message, ...state.log].slice(0, 5);
 const withTurnIfSpent = (state: GameState) => state.pa <= 0 ? { ...state, turn: "enemy" as const, phase: "resolving" as const, pa: 0 } : state;
 
-export const initialGameState = (wins = 0, losses = 0, loadout: Loadout = DEFAULT_LOADOUT): GameState => ({
+export const initialGameState = (wins = 0, losses = 0, loadout: Loadout = DEFAULT_LOADOUT, rival: RivalProfile = DEFAULT_RIVAL): GameState => ({
   round: 1,
   turn: "player",
   phase: "active",
   winner: null,
   player: { kind: "player", name: loadout.operatorName, x: 1, y: 6 },
-  enemy: { kind: "enemy", name: "HOSTIL-07", x: 6, y: 1 },
+  enemy: { kind: "enemy", name: rival.operatorName, x: 6, y: 1 },
+  enemyLoadout: rival,
+  isChallenge: rival.operatorName !== DEFAULT_RIVAL.operatorName,
   loadout,
   pa: loadoutStats(loadout).maxPa,
   maxPa: loadoutStats(loadout).maxPa,
@@ -169,39 +174,41 @@ const coverCellsNear = (state: GameState): Coord[] => {
 
 export const runEnemyTurn = (state: GameState): GameState => {
   if (state.phase !== "resolving" || state.turn !== "enemy") return state;
+  const style = state.enemyLoadout.weapon;
   let enemy = { ...state.enemy };
   let pa = state.maxPa;
   let log = state.log;
-  const canShootNow = hasLineOfSight({ x: enemy.x, y: enemy.y }, { x: state.player.x, y: state.player.y });
-  if (!canShootNow) {
-    const coverTarget = coverCellsNear({ ...state, enemy })
-      .map((target) => ({ target, path: findPath({ x: enemy.x, y: enemy.y }, target, { ...state, enemy }) }))
-      .filter((entry) => entry.path.length > 0)
-      .sort((a, b) => a.path.length - b.path.length)[0];
-    if (coverTarget) {
-      const steps = Math.min(2, pa, coverTarget.path.length);
-      const destination = coverTarget.path[steps - 1];
-      enemy = { ...enemy, x: destination.x, y: destination.y };
-      pa -= steps;
-      log = appendLog({ ...state, log }, `HOSTIL avançou ${steps} casa${steps > 1 ? "s" : ""} buscando cobertura.`);
-    }
+  const enemyState = () => ({ ...state, enemy });
+  const candidates = coverCellsNear(enemyState()).map((target) => ({ target, path: findPath({ x: enemy.x, y: enemy.y }, target, enemyState()) })).filter((entry) => entry.path.length > 0);
+  if (style === "sniper") {
+    const fullCover = candidates.filter(({ target }) => isFullCoverPosition(target)).sort((a, b) => distanceBetween(b.target, { x: state.player.x, y: state.player.y }) - distanceBetween(a.target, { x: state.player.x, y: state.player.y }))[0];
+    const retreat = fullCover ?? candidates.sort((a, b) => distanceBetween(b.target, { x: state.player.x, y: state.player.y }) - distanceBetween(a.target, { x: state.player.x, y: state.player.y }))[0];
+    if (retreat) { const steps = Math.min(2, pa, retreat.path.length); const destination = retreat.path[steps - 1]; enemy = { ...enemy, x: destination.x, y: destination.y }; pa -= steps; log = appendLog({ ...state, log }, `${enemy.name} recuou para ${fullCover ? "cobertura total" : "distância"}.`); }
+  } else if (style === "smg") {
+    const route = findPath({ x: enemy.x, y: enemy.y }, { x: state.player.x, y: state.player.y }, enemyState());
+    if (route.length) { const steps = Math.min(2, pa, Math.max(1, route.length - 1)); const destination = route[steps - 1]; enemy = { ...enemy, x: destination.x, y: destination.y }; pa -= steps; log = appendLog({ ...state, log }, `${enemy.name} avançou agressivamente para curta distância.`); }
+  } else {
+    const flank = candidates.filter(({ target }) => target.x !== enemy.x && target.y !== enemy.y).sort((a, b) => Number(hasLineOfSight(b.target, { x: state.player.x, y: state.player.y })) - Number(hasLineOfSight(a.target, { x: state.player.x, y: state.player.y })) || a.path.length - b.path.length)[0];
+    if (flank && !hasLineOfSight({ x: enemy.x, y: enemy.y }, { x: state.player.x, y: state.player.y })) { const steps = Math.min(2, pa, flank.path.length); const destination = flank.path[steps - 1]; enemy = { ...enemy, x: destination.x, y: destination.y }; pa -= steps; log = appendLog({ ...state, log }, `${enemy.name} flanqueou em busca de linha diagonal.`); }
   }
   const hasShot = hasLineOfSight({ x: enemy.x, y: enemy.y }, { x: state.player.x, y: state.player.y });
-  if (hasShot && pa >= 2) {
-    const distance = distanceBetween({ x: enemy.x, y: enemy.y }, { x: state.player.x, y: state.player.y });
+  const distance = distanceBetween({ x: enemy.x, y: enemy.y }, { x: state.player.x, y: state.player.y });
+  const needsAim = style === "sniper";
+  const shotCost = style === "smg" && distance <= 3 ? 3 : 2;
+  if (hasShot && pa >= shotCost) {
+    if (needsAim) { pa -= 1; log = appendLog({ ...state, log }, `${enemy.name} estabilizou a mira de sniper.`); }
     const coverPenalty = coverPenaltyAt({ x: state.player.x, y: state.player.y });
     const stealthPenalty = state.loadout.uniform === "all-black" ? 10 : 0;
     const woodlandProtection = state.loadout.uniform === "woodland" && distance >= 4 ? 10 : 0;
-    const accuracy = Math.max(5, Math.min(95, 80 - Math.max(0, distance - 2) * 4 - coverPenalty - stealthPenalty - woodlandProtection));
+    const base = style === "sniper" ? 88 : style === "smg" ? 78 : 80;
+    const rangePenalty = style === "smg" ? Math.max(0, distance - 2) * 8 : Math.max(0, distance - 2) * 4;
+    const accuracy = Math.max(5, Math.min(95, base - rangePenalty - coverPenalty - stealthPenalty - woodlandProtection + (needsAim ? 20 : 0)));
     const random = nextRandom({ ...state, rng: state.rng + 31 });
-    const hit = random.roll * 100 <= accuracy;
-    const result: ShotResult = { action: "semi", chance: accuracy, roll: Math.round(random.roll * 100), hit, pathBlocked: false, distance, coverPenalty, aimBonus: 0, bullets: 1, message: hit ? "Hostil conectou um disparo." : "Hostil errou o disparo." };
-    if (hit) {
-      return { ...state, enemy, pa: pa - 2, phase: "ended", winner: "enemy", losses: state.losses + 1, lastShot: result, rng: random.rng, log: appendLog({ ...state, log }, "HIT recebido. Operador ALFA-01 eliminado.") };
-    }
-    log = appendLog({ ...state, log }, `Hostil disparou e errou (${accuracy}% de chance).`);
-  } else {
-    log = appendLog({ ...state, log }, "Hostil sem linha de visão — manteve posição.");
-  }
+    const bullets = style === "smg" && distance <= 3 ? 3 : 1;
+    const hit = bullets === 3 ? [random.roll, (random.roll * 1.73) % 1, (random.roll * 2.41) % 1].some((roll) => roll * 100 <= accuracy) : random.roll * 100 <= accuracy;
+    const result: ShotResult = { action: bullets === 3 ? "burst" : "semi", chance: accuracy, roll: Math.round(random.roll * 100), hit, pathBlocked: false, distance, coverPenalty, aimBonus: needsAim ? 20 : 0, bullets, message: hit ? `${enemy.name} conectou um disparo.` : `${enemy.name} errou o disparo.` };
+    if (hit) return { ...state, enemy, pa: pa - shotCost, phase: "ended", winner: "enemy", losses: state.losses + 1, lastShot: result, rng: random.rng, log: appendLog({ ...state, log }, `HIT recebido. ${state.player.name} eliminado.`) };
+    log = appendLog({ ...state, log }, `${enemy.name} disparou e errou (${accuracy}% de chance).`);
+  } else log = appendLog({ ...state, log }, `${enemy.name} manteve posição tática sem linha de visão.`);
   return { ...state, enemy, turn: "player", phase: "active", pa: state.maxPa, aimBonus: 0, selectedCell: null, pathPreview: [], round: state.round + 1, lastShot: null, rng: state.rng, log: appendLog({ ...state, log }, "Seu turno. Escolha uma ação.") };
 };
