@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { findPath, obstacleAt, OBSTACLES } from "../game/GameLogic";
-import type { Coord, GameState } from "../game/types";
+import type { Coord, GameState, WeaponId } from "../game/types";
 
 const VIEW_W = 390;
 const VIEW_H = 330;
@@ -165,8 +165,8 @@ export default function ArenaCanvas({ state, mode, moveArmed, hovered, shotPulse
       context.restore();
     });
 
-    drawOperator(context, toScreen({ x: current.player.x, y: current.player.y }), "player", toScreen(to), current.player.name, current.loadout.uniform);
-    drawOperator(context, toScreen({ x: current.enemy.x, y: current.enemy.y }), "enemy", toScreen(from), current.enemy.name, "all-black");
+    drawOperator(context, toScreen({ x: current.player.x, y: current.player.y }), "player", toScreen(to), current.player.name, current.loadout.uniform, current.loadout.weapon);
+    drawOperator(context, toScreen({ x: current.enemy.x, y: current.enemy.y }), "enemy", toScreen(from), current.enemy.name, "all-black", "m4");
 
     if (fxProgress > 0 && current.lastShot) {
       const start = toScreen(from);
@@ -303,7 +303,7 @@ function drawDrum(context: CanvasRenderingContext2D, x: number, y: number) {
   context.fillText("FULL • 70%", x, y + 23);
 }
 
-function drawOperator(context: CanvasRenderingContext2D, center: { x: number; y: number }, kind: "player" | "enemy", target: { x: number; y: number }, name: string, uniform: "multicam" | "all-black" | "woodland") {
+function drawOperator(context: CanvasRenderingContext2D, center: { x: number; y: number }, kind: "player" | "enemy", target: { x: number; y: number }, name: string, uniform: "multicam" | "all-black" | "woodland", weapon: WeaponId) {
   const isPlayer = kind === "player";
   const accent = isPlayer ? "#55d7c4" : "#ef5c67";
   const uniformFill = uniform === "all-black" ? "#1a2222" : uniform === "woodland" ? "#3f513a" : "#52624a";
@@ -341,8 +341,10 @@ function drawOperator(context: CanvasRenderingContext2D, center: { x: number; y:
   context.save();
   context.translate(center.x, center.y - 2);
   context.rotate(angle);
-  context.fillStyle = "#222d2a";
-  context.fillRect(4, -2, 15, 3);
+  context.fillStyle = weapon === "sniper" ? "#172221" : weapon === "smg" ? "#25312e" : "#222d2a";
+  context.fillRect(4, -2, weapon === "sniper" ? 23 : weapon === "smg" ? 12 : 15, 3);
+  if (weapon === "sniper") { context.fillStyle = "#607b70"; context.fillRect(12, -5, 7, 2); context.fillStyle = "#172221"; context.fillRect(25, -1, 5, 1.5); }
+  if (weapon === "smg") { context.fillStyle = "#4d7564"; context.fillRect(9, 1, 3, 6); }
   context.fillStyle = accent;
   context.fillRect(16, -1, 8, 1.2);
   context.restore();

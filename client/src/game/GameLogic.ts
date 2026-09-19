@@ -100,6 +100,8 @@ export const initialGameState = (wins = 0, losses = 0, loadout: Loadout = DEFAUL
   pathPreview: [],
   log: ["Entrada confirmada. Arena CQB carregada."],
   lastShot: null,
+  shotsFired: 0,
+  shotsHit: 0,
   wins,
   losses,
   rng: 17,
@@ -142,8 +144,9 @@ const shoot = (state: GameState, action: Exclude<ActionId, "move">): GameState =
   const random = nextRandom(state);
   const hit = !pathBlocked && (action === "burst" ? [random.roll, (random.roll * 1.73) % 1, (random.roll * 2.41) % 1].some((roll) => roll * 100 <= accuracy) : random.roll * 100 <= accuracy);
   const result: ShotResult = { action, chance: accuracy, roll: Math.round(random.roll * 100), hit, pathBlocked, distance, coverPenalty, aimBonus: state.aimBonus, bullets, message: pathBlocked ? "Linha de visão bloqueada." : hit ? "HIT confirmado — operador eliminado." : "BBs desviaram do alvo." };
-  if (hit) return { ...state, phase: "ended", winner: "player", pa: state.pa - cost, lastShot: result, wins: state.wins + 1, log: appendLog(state, `HIT! ${action === "burst" ? "Rajada" : "Disparo semi"} conectou.`), rng: random.rng };
-  return withTurnIfSpent({ ...state, pa: state.pa - cost, aimBonus: 0, lastShot: result, log: appendLog(state, `${action === "burst" ? "Rajada" : "Disparo semi"}: ${result.message}`), rng: random.rng });
+  const metrics = { shotsFired: state.shotsFired + 1, shotsHit: state.shotsHit + (hit ? 1 : 0) };
+  if (hit) return { ...state, ...metrics, phase: "ended", winner: "player", pa: state.pa - cost, lastShot: result, wins: state.wins + 1, log: appendLog(state, `HIT! ${action === "burst" ? "Rajada" : "Disparo semi"} conectou.`), rng: random.rng };
+  return withTurnIfSpent({ ...state, ...metrics, pa: state.pa - cost, aimBonus: 0, lastShot: result, log: appendLog(state, `${action === "burst" ? "Rajada" : "Disparo semi"}: ${result.message}`), rng: random.rng });
 };
 
 export const fireSemi = (state: GameState) => shoot(state, "semi");

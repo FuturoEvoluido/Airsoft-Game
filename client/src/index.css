@@ -235,3 +235,60 @@ body { overscroll-behavior: none; }
 .hq-footer { position: sticky; bottom: 0; margin: 0 -14px -10px; padding: 8px 14px 10px; background: linear-gradient(180deg, rgba(7, 14, 12, .68), #07100d 32%); box-shadow: 0 -12px 24px rgba(4, 10, 8, .8); }
 .enter-operation { min-height: 38px; padding: 9px 10px; font-size: 8px; box-shadow: 0 0 18px rgba(62, 139, 83, .22); }
 @media (max-height: 720px) { .operator-preview { flex-basis: 120px; height: 103px; } .operator-preview svg { height: 86px; } .hq-hero { padding: 4px 0; } .hq-section { padding: 5px 7px; } .loadout-card { min-height: 32px; padding: 4px; } .hq-footer { padding-top: 6px; padding-bottom: 7px; } }
+
+/* Competitive progression, rank strip and tactical AAR */
+.rank-progress { width: 100%; margin-top: 7px; }
+.rank-progress.compact { max-width: 205px; }
+.rank-line { display: flex; align-items: center; gap: 6px; }
+.rank-line > div { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.rank-line b { color: #d9e8d6; font-size: 8px; letter-spacing: .1em; }
+.rank-line small { color: #789588; font-size: 6px; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-line strong { color: #d5be6b; font-size: 8px; letter-spacing: .06em; }
+.rank-insignia { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid #c3a65b; color: #e0c875; font-size: 8px; font-weight: 900; background: rgba(111, 86, 31, .2); }
+.xp-track { height: 3px; margin-top: 5px; background: #172b22; border: 1px solid #2d4c3d; }
+.xp-track span { display: block; height: 100%; background: linear-gradient(90deg, #c09f51, #69d2bc); box-shadow: 0 0 8px rgba(105, 210, 188, .3); transition: width .25s ease; }
+.arena-rank-strip { flex: 0 0 auto; padding: 1px 3px 0; }
+.arena-rank-strip .rank-progress { margin: 0; max-width: none; }
+.arena-rank-strip .rank-line { justify-content: flex-end; }
+.arena-rank-strip .rank-line > div { max-width: 185px; }
+.arena-rank-strip .rank-line strong { margin-left: auto; }
+.leaderboard-button { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; border: 1px solid #725f35; background: #191f17; color: #d7bd6b; padding: 7px 8px; font-size: 7px; font-weight: 800; letter-spacing: .08em; white-space: nowrap; }
+.leaderboard-button:hover { background: #2e3522; }
+.hq-footer { gap: 5px; }
+.hq-footer .enter-operation { margin-left: auto; }
+.leaderboard-overlay { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(2, 7, 6, .82); backdrop-filter: blur(8px); }
+.leaderboard-modal { width: min(100%, 390px); max-height: calc(100dvh - 32px); overflow: hidden; border: 1px solid #476a58; background: linear-gradient(145deg, #172d24, #09120f 78%); box-shadow: 0 25px 80px rgba(0,0,0,.58); }
+.leaderboard-modal header { display: flex; align-items: flex-start; justify-content: space-between; padding: 15px 15px 11px; border-bottom: 1px solid #2b4a3b; }
+.leaderboard-modal h2 { font-size: 17px; letter-spacing: .1em; }
+.leaderboard-modal h2 span { color: var(--teal); }
+.modal-close { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #496755; background: #11241b; color: #94b3a1; }
+.leaderboard-head, .leaderboard-row { display: grid; grid-template-columns: 28px 1fr 52px; align-items: center; gap: 7px; }
+.leaderboard-head { padding: 8px 14px 5px; color: #718a7b; font-size: 7px; letter-spacing: .12em; }
+.leaderboard-head span:last-child { text-align: right; }
+.leaderboard-list { padding: 0 8px 7px; }
+.leaderboard-row { min-height: 33px; padding: 4px 6px; border-top: 1px solid rgba(56, 89, 71, .46); }
+.leaderboard-row.player-row { border: 1px solid #56c8ad; background: rgba(43, 104, 80, .3); }
+.leaderboard-row > span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.leaderboard-row strong { color: #d9e7da; font-size: 8px; letter-spacing: .06em; }
+.leaderboard-row small { color: #789689; font-size: 6px; letter-spacing: .08em; }
+.leaderboard-row em { text-align: right; color: #ddc878; font-size: 9px; font-style: normal; font-weight: 800; }
+.leaderboard-rank { color: #8da99a; font-size: 9px; text-align: center; }
+.leaderboard-row:nth-child(-n+3) .leaderboard-rank { color: #dfc96f; }
+.leaderboard-modal footer { display: flex; align-items: center; gap: 5px; padding: 10px 14px; border-top: 1px solid #2b4a3b; color: #789588; font-size: 7px; letter-spacing: .08em; }
+.leaderboard-modal footer b { color: #dfc96f; }
+.aar-modal { max-width: 390px; padding: 18px 16px 15px; }
+.aar-modal .result-stamp { margin-top: 11px; font-size: 38px; }
+.aar-modal h2 { font-size: 14px; line-height: 1.25; letter-spacing: .08em; }
+.aar-modal p { margin: 7px auto 10px; font-size: 9px; }
+.aar-metrics { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid #2b493d; border-bottom: 1px solid #2b493d; padding: 9px 0; margin-bottom: 9px; }
+.aar-metrics span { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+.aar-metrics span + span { border-left: 1px solid #2b493d; }
+.aar-metrics b { color: #d0e3d7; font-size: 13px; }
+.aar-metrics small { color: #738b7e; font-size: 5px; letter-spacing: .08em; text-align: center; }
+.aar-rewards { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 10px; }
+.aar-rewards span { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 4px; border: 1px solid #695d38; color: #c8b36b; font-size: 6px; letter-spacing: .04em; }
+.aar-rewards b { color: #f0d77c; font-size: 9px; }
+.aar-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.aar-actions button { min-height: 34px; font-size: 7px; padding: 7px 5px; }
+.hq-return-button { display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid #4b6858; background: #18251e; color: #b9cdbd; font-size: 7px; font-weight: 800; letter-spacing: .04em; }
+@media (max-height: 720px) { .arena-rank-strip { display: none; } .rank-progress.compact { margin-top: 3px; } .leaderboard-modal header { padding: 10px 12px 8px; } .leaderboard-row { min-height: 29px; } .aar-modal { padding-top: 12px; } }

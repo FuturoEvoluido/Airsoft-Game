@@ -58,6 +58,8 @@ export interface GameState {
   pathPreview: Coord[];
   log: string[];
   lastShot: ShotResult | null;
+  shotsFired: number;
+  shotsHit: number;
   wins: number;
   losses: number;
   rng: number;
