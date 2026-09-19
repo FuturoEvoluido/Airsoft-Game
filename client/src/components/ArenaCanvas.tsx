@@ -165,8 +165,8 @@ export default function ArenaCanvas({ state, mode, moveArmed, hovered, shotPulse
       context.restore();
     });
 
-    drawOperator(context, toScreen({ x: current.player.x, y: current.player.y }), "player", toScreen(to));
-    drawOperator(context, toScreen({ x: current.enemy.x, y: current.enemy.y }), "enemy", toScreen(from));
+    drawOperator(context, toScreen({ x: current.player.x, y: current.player.y }), "player", toScreen(to), current.player.name, current.loadout.uniform);
+    drawOperator(context, toScreen({ x: current.enemy.x, y: current.enemy.y }), "enemy", toScreen(from), current.enemy.name, "all-black");
 
     if (fxProgress > 0 && current.lastShot) {
       const start = toScreen(from);
@@ -303,10 +303,11 @@ function drawDrum(context: CanvasRenderingContext2D, x: number, y: number) {
   context.fillText("FULL • 70%", x, y + 23);
 }
 
-function drawOperator(context: CanvasRenderingContext2D, center: { x: number; y: number }, kind: "player" | "enemy", target: { x: number; y: number }) {
+function drawOperator(context: CanvasRenderingContext2D, center: { x: number; y: number }, kind: "player" | "enemy", target: { x: number; y: number }, name: string, uniform: "multicam" | "all-black" | "woodland") {
   const isPlayer = kind === "player";
   const accent = isPlayer ? "#55d7c4" : "#ef5c67";
-  const dark = isPlayer ? "#204b4b" : "#4c242d";
+  const uniformFill = uniform === "all-black" ? "#1a2222" : uniform === "woodland" ? "#3f513a" : "#52624a";
+  const dark = isPlayer ? uniformFill : "#4c242d";
   const angle = Math.atan2(target.y - center.y, target.x - center.x);
   context.save();
   context.fillStyle = `${accent}22`;
@@ -351,6 +352,6 @@ function drawOperator(context: CanvasRenderingContext2D, center: { x: number; y:
   context.fill();
   context.font = "700 5px Arial";
   context.textAlign = "center";
-  context.fillText(isPlayer ? "ALFA" : "HOSTIL", center.x, center.y - 31);
+  context.fillText(name.slice(0, 10).toUpperCase(), center.x, center.y - 31);
   context.restore();
 }

@@ -1,7 +1,15 @@
-import type { ActionId, Coord, GameState, Obstacle, ShotResult } from "./types";
+import type { ActionId, Coord, GameState, Loadout, Obstacle, ShotResult } from "./types";
 
 export const GRID_SIZE = 8;
 export const MAX_PA = 5;
+export const DEFAULT_LOADOUT: Loadout = { operatorName: "ALFA-01", teamName: "NIGHTFALL", patch: "☢", uniform: "multicam", vest: "heavy", weapon: "m4" };
+
+export const loadoutStats = (loadout: Loadout) => {
+  const maxPa = loadout.vest === "light" ? 6 : 5;
+  if (loadout.weapon === "sniper") return { maxPa, semiCost: 3, burstCost: Infinity, baseAccuracy: 95, rangePenalty: 0, burstAvailable: false };
+  if (loadout.weapon === "smg") return { maxPa, semiCost: 1, burstCost: 2, baseAccuracy: 76, rangePenalty: 7, burstAvailable: true };
+  return { maxPa, semiCost: 2, burstCost: 3, baseAccuracy: 80, rangePenalty: 4, burstAvailable: true };
+};
 
 export const OBSTACLES: Obstacle[] = [
   { id: "barricade-a", x: 3, y: 2, type: "half", label: "BARRICADA" },
@@ -77,15 +85,16 @@ const nextRandom = (state: GameState) => {
 const appendLog = (state: GameState, message: string): string[] => [message, ...state.log].slice(0, 5);
 const withTurnIfSpent = (state: GameState) => state.pa <= 0 ? { ...state, turn: "enemy" as const, phase: "resolving" as const, pa: 0 } : state;
 
-export const initialGameState = (wins = 0, losses = 0): GameState => ({
+export const initialGameState = (wins = 0, losses = 0, loadout: Loadout = DEFAULT_LOADOUT): GameState => ({
   round: 1,
   turn: "player",
   phase: "active",
   winner: null,
-  player: { kind: "player", name: "ALFA-01", x: 1, y: 6 },
+  player: { kind: "player", name: loadout.operatorName, x: 1, y: 6 },
   enemy: { kind: "enemy", name: "HOSTIL-07", x: 6, y: 1 },
-  pa: MAX_PA,
-  maxPa: MAX_PA,
+  loadout,
+  pa: loadoutStats(loadout).maxPa,
+  maxPa: loadoutStats(loadout).maxPa,
   aimBonus: 0,
   selectedCell: null,
   pathPreview: [],
@@ -118,16 +127,18 @@ export const aimPlayer = (state: GameState): GameState => {
 };
 
 const shoot = (state: GameState, action: Exclude<ActionId, "move">): GameState => {
-  const cost = action === "aim" ? 1 : action === "semi" ? 2 : 3;
+  const stats = loadoutStats(state.loadout);
+  const cost = action === "aim" ? 1 : action === "semi" ? stats.semiCost : stats.burstCost;
   if (action === "aim") return aimPlayer(state);
-  if (state.turn !== "player" || state.phase !== "active" || state.pa < cost) return state;
+  if (state.turn !== "player" || state.phase !== "active" || state.pa < cost || (action === "burst" && !stats.burstAvailable)) return state;
   const from = { x: state.player.x, y: state.player.y };
   const to = { x: state.enemy.x, y: state.enemy.y };
   const pathBlocked = !hasLineOfSight(from, to);
   const distance = distanceBetween(from, to);
   const coverPenalty = coverPenaltyAt(to);
   const bullets = action === "burst" ? 3 : 1;
-  const accuracy = Math.max(5, Math.min(98, 80 - Math.max(0, distance - 2) * 4 - coverPenalty + state.aimBonus));
+  const vestBonus = state.loadout.vest === "heavy" ? 4 : 0;
+  const accuracy = Math.max(5, Math.min(98, stats.baseAccuracy - Math.max(0, distance - 2) * stats.rangePenalty - coverPenalty + state.aimBonus + vestBonus));
   const random = nextRandom(state);
   const hit = !pathBlocked && (action === "burst" ? [random.roll, (random.roll * 1.73) % 1, (random.roll * 2.41) % 1].some((roll) => roll * 100 <= accuracy) : random.roll * 100 <= accuracy);
   const result: ShotResult = { action, chance: accuracy, roll: Math.round(random.roll * 100), hit, pathBlocked, distance, coverPenalty, aimBonus: state.aimBonus, bullets, message: pathBlocked ? "Linha de visão bloqueada." : hit ? "HIT confirmado — operador eliminado." : "BBs desviaram do alvo." };
@@ -156,7 +167,7 @@ const coverCellsNear = (state: GameState): Coord[] => {
 export const runEnemyTurn = (state: GameState): GameState => {
   if (state.phase !== "resolving" || state.turn !== "enemy") return state;
   let enemy = { ...state.enemy };
-  let pa = MAX_PA;
+  let pa = state.maxPa;
   let log = state.log;
   const canShootNow = hasLineOfSight({ x: enemy.x, y: enemy.y }, { x: state.player.x, y: state.player.y });
   if (!canShootNow) {
@@ -176,7 +187,9 @@ export const runEnemyTurn = (state: GameState): GameState => {
   if (hasShot && pa >= 2) {
     const distance = distanceBetween({ x: enemy.x, y: enemy.y }, { x: state.player.x, y: state.player.y });
     const coverPenalty = coverPenaltyAt({ x: state.player.x, y: state.player.y });
-    const accuracy = Math.max(5, Math.min(95, 80 - Math.max(0, distance - 2) * 4 - coverPenalty));
+    const stealthPenalty = state.loadout.uniform === "all-black" ? 10 : 0;
+    const woodlandProtection = state.loadout.uniform === "woodland" && distance >= 4 ? 10 : 0;
+    const accuracy = Math.max(5, Math.min(95, 80 - Math.max(0, distance - 2) * 4 - coverPenalty - stealthPenalty - woodlandProtection));
     const random = nextRandom({ ...state, rng: state.rng + 31 });
     const hit = random.roll * 100 <= accuracy;
     const result: ShotResult = { action: "semi", chance: accuracy, roll: Math.round(random.roll * 100), hit, pathBlocked: false, distance, coverPenalty, aimBonus: 0, bullets: 1, message: hit ? "Hostil conectou um disparo." : "Hostil errou o disparo." };
@@ -187,5 +200,5 @@ export const runEnemyTurn = (state: GameState): GameState => {
   } else {
     log = appendLog({ ...state, log }, "Hostil sem linha de visão — manteve posição.");
   }
-  return { ...state, enemy, turn: "player", phase: "active", pa: MAX_PA, aimBonus: 0, selectedCell: null, pathPreview: [], round: state.round + 1, lastShot: null, rng: state.rng, log: appendLog({ ...state, log }, "Seu turno. Escolha uma ação.") };
+  return { ...state, enemy, turn: "player", phase: "active", pa: state.maxPa, aimBonus: 0, selectedCell: null, pathPreview: [], round: state.round + 1, lastShot: null, rng: state.rng, log: appendLog({ ...state, log }, "Seu turno. Escolha uma ação.") };
 };

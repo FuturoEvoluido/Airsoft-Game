@@ -2,6 +2,18 @@ export type Coord = { x: number; y: number };
 export type CoverType = "none" | "half" | "full";
 export type ActorKind = "player" | "enemy";
 export type ActionId = "move" | "aim" | "semi" | "burst";
+export type UniformId = "multicam" | "all-black" | "woodland";
+export type VestId = "light" | "heavy";
+export type WeaponId = "m4" | "sniper" | "smg";
+
+export interface Loadout {
+  operatorName: string;
+  teamName: string;
+  patch: string;
+  uniform: UniformId;
+  vest: VestId;
+  weapon: WeaponId;
+}
 
 export interface Obstacle {
   id: string;
@@ -38,6 +50,7 @@ export interface GameState {
   winner: ActorKind | null;
   player: Operator;
   enemy: Operator;
+  loadout: Loadout;
   pa: number;
   maxPa: number;
   aimBonus: number;
