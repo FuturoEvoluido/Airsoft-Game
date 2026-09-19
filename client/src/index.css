@@ -18,12 +18,14 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { min-height: 100%; margin: 0; }
-body { background: #070b0b; overflow-x: hidden; }
+html, body, #root { min-height: 100%; margin: 0; width: 100%; }
+html { overscroll-behavior: none; touch-action: manipulation; }
+body { background: #0B0F12; overflow: hidden; overscroll-behavior-y: none; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+input, textarea { user-select: text; -webkit-user-select: text; touch-action: manipulation; }
 button { font: inherit; }
 button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 
-.game-shell { min-height: 100vh; width: 100%; max-width: 540px; margin: 0 auto; padding: 14px 14px 22px; position: relative; overflow: hidden; background: radial-gradient(circle at 50% -10%, #19352f 0, #0b1513 42%, #070b0b 78%); }
+.game-shell { min-height: 100vh; min-height: 100dvh; width: 100%; max-width: 540px; margin: 0 auto; padding: calc(14px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(22px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left)); position: relative; overflow: hidden; background: radial-gradient(circle at 50% -10%, #19352f 0, #0b1513 42%, #070b0b 78%); }
 .game-shell::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .18; background-image: linear-gradient(120deg, transparent 0 48%, rgba(127, 178, 159, .12) 49%, transparent 50%), radial-gradient(rgba(211, 255, 229, .11) 0.6px, transparent .7px); background-size: 180px 180px, 5px 5px; mix-blend-mode: screen; }
 .scanline { position: fixed; left: 0; right: 0; top: 0; height: 1px; background: rgba(111, 226, 196, .28); box-shadow: 0 0 18px rgba(82, 211, 186, .46); opacity: .4; z-index: 10; animation: sweep 5s linear infinite; pointer-events: none; }
 @keyframes sweep { 0% { transform: translateY(-10px); } 100% { transform: translateY(100vh); } }
@@ -301,3 +303,9 @@ body { overscroll-behavior: none; }
 .audio-led.muted { background: #718176; box-shadow: none; }
 .match-meta .audio-toggle { padding-inline: 5px; }
 @media (max-width: 360px) { .audio-toggle { font-size: 6px; padding-inline: 4px; } .match-meta { gap: 3px; } .rank-chip, .score-chip { padding-inline: 5px; } }
+
+/* PWA mobile production hardening */
+button, [role="button"] { touch-action: manipulation; }
+.hq-shell { padding-top: calc(12px + env(safe-area-inset-top)); padding-right: calc(14px + env(safe-area-inset-right)); padding-bottom: calc(10px + env(safe-area-inset-bottom)); padding-left: calc(14px + env(safe-area-inset-left)); }
+.hq-footer { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+@media (max-width: 540px) { .game-shell { max-width: none; } }

@@ -1,0 +1,14 @@
+{
+  "name": "Airsoft Tactical Arena",
+  "short_name": "Airsoft Arena",
+  "description": "Combate CQB tático por turnos em uma arena isométrica.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B0F12",
+  "theme_color": "#0B0F12",
+  "icons": [
+    { "src": "/icons/airsoft-arena.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
