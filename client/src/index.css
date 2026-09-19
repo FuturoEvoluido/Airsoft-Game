@@ -292,3 +292,12 @@ body { overscroll-behavior: none; }
 .aar-actions button { min-height: 34px; font-size: 7px; padding: 7px 5px; }
 .hq-return-button { display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid #4b6858; background: #18251e; color: #b9cdbd; font-size: 7px; font-weight: 800; letter-spacing: .04em; }
 @media (max-height: 720px) { .arena-rank-strip { display: none; } .rank-progress.compact { margin-top: 3px; } .leaderboard-modal header { padding: 10px 12px 8px; } .leaderboard-row { min-height: 29px; } .aar-modal { padding-top: 12px; } }
+
+/* Procedural tactical audio control */
+.hq-header-actions { display: flex; align-items: center; gap: 8px; }
+.audio-toggle { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 4px 6px; border: 1px solid #315244; background: rgba(13, 31, 25, .72); color: #88a99a; font-size: 7px; font-weight: 800; letter-spacing: .1em; }
+.audio-toggle:active { transform: scale(.96); }
+.audio-led { width: 5px; height: 5px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 7px var(--teal); }
+.audio-led.muted { background: #718176; box-shadow: none; }
+.match-meta .audio-toggle { padding-inline: 5px; }
+@media (max-width: 360px) { .audio-toggle { font-size: 6px; padding-inline: 4px; } .match-meta { gap: 3px; } .rank-chip, .score-chip { padding-inline: 5px; } }
