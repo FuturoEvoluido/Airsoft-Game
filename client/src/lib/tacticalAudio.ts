@@ -23,7 +23,7 @@ class TacticalAudio {
       if (!AudioContextClass) return null;
       this.context = new AudioContextClass();
       this.master = this.context.createGain();
-      this.master.gain.value = this.muted ? 0 : 0.22;
+      this.master.gain.value = this.muted ? 0 : 0.52;
       this.master.connect(this.context.destination);
     }
     if (this.context.state === "suspended") void this.context.resume();
@@ -40,7 +40,7 @@ class TacticalAudio {
     this.muted = !this.muted;
     window.localStorage.setItem(AUDIO_MUTE_KEY, String(this.muted));
     const context = this.ensureContext();
-    if (this.master && context) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.22, context.currentTime, 0.018);
+    if (this.master && context) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.52, context.currentTime, 0.018);
     return this.muted;
   }
 
@@ -97,33 +97,33 @@ class TacticalAudio {
 
   fire(weapon: WeaponSound) {
     if (weapon === "sniper") {
-      this.noise(0.11, 0.2, 850);
-      this.tone(95, 0.16, "triangle", 0.21);
-      this.tone(1850, 0.055, "square", 0.08, 0, 0.2);
+      this.noise(0.11, 0.36, 850);
+      this.tone(95, 0.16, "triangle", 0.36);
+      this.tone(1850, 0.055, "square", 0.16, 0, 0.2);
       return;
     }
     if (weapon === "smg") {
-      this.noise(0.045, 0.15, 6100);
-      this.tone(160, 0.065, "sawtooth", 0.1);
-      this.noise(0.035, 0.1, 7600, 0.075);
-      this.tone(1300, 0.035, "square", 0.055, 0, 0.12);
+      this.noise(0.045, 0.28, 6100);
+      this.tone(160, 0.065, "sawtooth", 0.18);
+      this.noise(0.035, 0.2, 7600, 0.075);
+      this.tone(1300, 0.035, "square", 0.11, 0, 0.12);
       return;
     }
-    this.noise(0.075, 0.14, 3000);
-    this.tone(125, 0.085, "sawtooth", 0.11);
-    this.tone(2400, 0.035, "square", 0.11, 0, 0.055);
+    this.noise(0.075, 0.27, 3000);
+    this.tone(125, 0.085, "sawtooth", 0.2);
+    this.tone(2400, 0.035, "square", 0.2, 0, 0.055);
   }
 
   miss() {
-    this.noise(0.18, 0.09, 2700);
-    this.tone(540, 0.12, "sine", 0.045, -400, 0.04);
+    this.noise(0.18, 0.16, 2700);
+    this.tone(540, 0.12, "sine", 0.09, -400, 0.04);
   }
 
   hit() {
-    this.tone(82, 0.16, "triangle", 0.22);
-    this.noise(0.07, 0.13, 1600, 0.015);
-    this.tone(980, 0.07, "square", 0.08, 0, 0.16);
-    this.tone(1460, 0.08, "square", 0.07, 0, 0.24);
+    this.tone(82, 0.16, "triangle", 0.36);
+    this.noise(0.07, 0.24, 1600, 0.015);
+    this.tone(980, 0.07, "square", 0.15, 0, 0.16);
+    this.tone(1460, 0.08, "square", 0.14, 0, 0.24);
   }
 
   startAmbient() {
@@ -138,7 +138,7 @@ class TacticalAudio {
     filter.type = "lowpass";
     filter.frequency.value = 180;
     gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.linearRampToValueAtTime(0.055, context.currentTime + 0.6);
+    gain.gain.linearRampToValueAtTime(0.12, context.currentTime + 0.6);
     oscillator.connect(filter).connect(gain).connect(master);
     oscillator.start();
     this.ambientOscillator = oscillator;
@@ -159,8 +159,8 @@ class TacticalAudio {
     const now = typeof performance !== "undefined" ? performance.now() : Date.now();
     if (now - this.lastStepAt < 260) return;
     this.lastStepAt = now;
-    this.noise(0.075, 0.045, 480);
-    this.tone(92, 0.075, "triangle", 0.045, -120, 0.008);
+    this.noise(0.075, 0.1, 480);
+    this.tone(92, 0.075, "triangle", 0.1, -120, 0.008);
   }
 }
 

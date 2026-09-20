@@ -376,3 +376,18 @@ button, [role="button"] { touch-action: manipulation; }
 .immersive-rival { color: rgba(255,161,164,.85); }
 .immersive-arena .result-overlay { z-index: 20; }
 @media (orientation: landscape) and (max-height: 560px) { .immersive-arena .joystick { width: 72px; height: 72px; bottom: 12px; } .immersive-arena .fire-control { width: 64px; height: 64px; bottom: 15px; } .immersive-arena .realtime-hud { top: 48px; } }
+
+/* Final viewport hardening: true edge-to-edge gameplay */
+html:has(.immersive-arena), body:has(.immersive-arena), #root:has(.immersive-arena) { position: fixed; inset: 0; width: 100vw; height: 100dvh; min-width: 100vw; min-height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; overflow: hidden; }
+.immersive-arena { position: fixed !important; inset: 0 !important; z-index: 9999 !important; width: 100vw !important; height: 100dvh !important; min-width: 100vw; min-height: 100dvh; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; }
+.immersive-arena .realtime-arena, .immersive-arena .realtime-canvas { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100dvh !important; min-width: 100vw; min-height: 100dvh; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden; }
+.immersive-arena .realtime-canvas { object-fit: fill !important; }
+.immersive-status, .immersive-arena .realtime-hint { display: none !important; }
+.immersive-arena .realtime-hud { top: calc(52px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); right: auto; opacity: .78; }
+.immersive-arena .joystick { left: calc(24px + env(safe-area-inset-left)) !important; bottom: calc(28px + env(safe-area-inset-bottom)) !important; }
+.immersive-arena .fire-control { right: calc(28px + env(safe-area-inset-right)) !important; bottom: calc(34px + env(safe-area-inset-bottom)) !important; }
+@media (orientation: landscape) {
+  .immersive-arena .joystick { left: calc(32px + env(safe-area-inset-left)) !important; bottom: calc(28px + env(safe-area-inset-bottom)) !important; }
+  .immersive-arena .fire-control { right: calc(32px + env(safe-area-inset-right)) !important; bottom: calc(28px + env(safe-area-inset-bottom)) !important; }
+  .immersive-arena .realtime-hud { top: calc(14px + env(safe-area-inset-top)); opacity: .55; }
+}
