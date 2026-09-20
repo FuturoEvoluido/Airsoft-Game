@@ -52,16 +52,21 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
   const [hostileCount, setHostileCount] = useState(4);
   const joystickPointer = useRef<number | null>(null);
 
-  const getViewportTransform = (viewW: number, viewH: number) => {
+  const getViewportTransform = (viewW: number, viewH: number, focus: Vec = runtime.current.player) => {
     const portrait = viewH > viewW;
     const logical = portrait ? PORTRAIT_LOGICAL : LANDSCAPE_LOGICAL;
     const LOGICAL_WIDTH = logical.w;
     const LOGICAL_HEIGHT = logical.h;
-    const scale = Math.min(viewW / LOGICAL_WIDTH, viewH / LOGICAL_HEIGHT);
-    return { portrait, logicalWidth: LOGICAL_WIDTH, logicalHeight: LOGICAL_HEIGHT, scale, offsetX: (viewW - LOGICAL_WIDTH * scale) / 2, offsetY: (viewH - LOGICAL_HEIGHT * scale) / 2 };
+    const scale = Math.max(viewW / LOGICAL_WIDTH, viewH / LOGICAL_HEIGHT);
+    const orientedFocus = portrait ? { x: focus.y, y: LOGICAL_HEIGHT - focus.x } : focus;
+    const centeredX = viewW / 2 - orientedFocus.x * scale;
+    const centeredY = viewH / 2 - orientedFocus.y * scale;
+    const offsetX = Math.min(0, Math.max(viewW - LOGICAL_WIDTH * scale, centeredX));
+    const offsetY = Math.min(0, Math.max(viewH - LOGICAL_HEIGHT * scale, centeredY));
+    return { portrait, logicalWidth: LOGICAL_WIDTH, logicalHeight: LOGICAL_HEIGHT, scale, offsetX, offsetY };
   };
   const applyCamera = (ctx: CanvasRenderingContext2D, viewW: number, viewH: number) => {
-    const { portrait, logicalHeight, scale, offsetX, offsetY } = getViewportTransform(viewW, viewH);
+    const { portrait, logicalHeight, scale, offsetX, offsetY } = getViewportTransform(viewW, viewH, runtime.current.player);
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
     if (portrait) { ctx.translate(0, logicalHeight); ctx.rotate(-Math.PI / 2); }
