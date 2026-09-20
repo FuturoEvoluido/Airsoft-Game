@@ -70,6 +70,13 @@ function ArenaView({ state, setState, profile, setProfile, onBack }: { state: Ga
   const [report, setReport] = useState<MatchReport | null>(null);
   const rank = rankProgress(profile.xp);
   const rival = state.enemyLoadout;
+  useEffect(() => {
+    const elements = [document.documentElement, document.body, document.getElementById("root")].filter(Boolean) as HTMLElement[];
+    const properties = ["position", "top", "left", "right", "bottom", "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "margin", "padding", "overflow", "zIndex"] as const;
+    const previous = elements.map((element) => ({ element, values: Object.fromEntries(properties.map((property) => [property, element.style[property]])) as Record<string, string> }));
+    elements.forEach((element) => { element.style.position = "fixed"; element.style.top = "0"; element.style.left = "0"; element.style.right = "0"; element.style.bottom = "0"; element.style.width = "100vw"; element.style.height = "100vh"; element.style.minWidth = "100vw"; element.style.minHeight = "100dvh"; element.style.maxWidth = "none"; element.style.maxHeight = "100dvh"; element.style.margin = "0"; element.style.padding = "0"; element.style.overflow = "hidden"; element.style.zIndex = "2147483647"; });
+    return () => previous.forEach(({ element, values }) => properties.forEach((property) => { element.style[property] = values[property] ?? ""; }));
+  }, []);
   const handleFinish = (result: RealtimeResult) => {
     tacticalAudio.hit();
     const tacticalBonus = state.isChallenge ? 15 : 5;

@@ -391,3 +391,10 @@ html:has(.immersive-arena), body:has(.immersive-arena), #root:has(.immersive-are
   .immersive-arena .fire-control { right: calc(32px + env(safe-area-inset-right)) !important; bottom: calc(28px + env(safe-area-inset-bottom)) !important; }
   .immersive-arena .realtime-hud { top: calc(14px + env(safe-area-inset-top)); opacity: .55; }
 }
+
+/* Absolute host-wrapper breakout for CQB gameplay */
+html:has(.immersive-arena), body:has(.immersive-arena), #root:has(.immersive-arena) { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important; min-width: 100vw !important; min-height: 100vh !important; min-height: 100dvh !important; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; z-index: 2147483647 !important; }
+.immersive-arena, .immersive-arena .realtime-arena, .immersive-arena .realtime-canvas { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important; min-width: 100vw !important; min-height: 100vh !important; min-height: 100dvh !important; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
+.immersive-arena { z-index: 2147483647 !important; }
+.immersive-arena .joystick { position: absolute !important; left: max(32px, env(safe-area-inset-left)) !important; bottom: max(32px, env(safe-area-inset-bottom)) !important; }
+.immersive-arena .fire-control { position: absolute !important; right: max(32px, env(safe-area-inset-right)) !important; bottom: max(36px, env(safe-area-inset-bottom)) !important; }
