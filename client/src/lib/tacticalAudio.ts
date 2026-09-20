@@ -5,6 +5,9 @@ const AUDIO_MUTE_KEY = "airsoft-tactical-arena.audio-muted";
 class TacticalAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
+  private ambientOscillator: OscillatorNode | null = null;
+  private ambientGain: GainNode | null = null;
+  private lastStepAt = 0;
   private muted = false;
 
   constructor() {
@@ -121,6 +124,43 @@ class TacticalAudio {
     this.noise(0.07, 0.13, 1600, 0.015);
     this.tone(980, 0.07, "square", 0.08, 0, 0.16);
     this.tone(1460, 0.08, "square", 0.07, 0, 0.24);
+  }
+
+  startAmbient() {
+    const output = this.output();
+    if (!output || this.ambientOscillator) return;
+    const { context, master } = output;
+    const oscillator = context.createOscillator();
+    const filter = context.createBiquadFilter();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(54, context.currentTime);
+    filter.type = "lowpass";
+    filter.frequency.value = 180;
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.linearRampToValueAtTime(0.055, context.currentTime + 0.6);
+    oscillator.connect(filter).connect(gain).connect(master);
+    oscillator.start();
+    this.ambientOscillator = oscillator;
+    this.ambientGain = gain;
+  }
+
+  stopAmbient() {
+    if (!this.ambientOscillator || !this.context || !this.ambientGain) return;
+    const now = this.context.currentTime;
+    this.ambientGain.gain.cancelScheduledValues(now);
+    this.ambientGain.gain.setTargetAtTime(0.0001, now, 0.08);
+    this.ambientOscillator.stop(now + 0.35);
+    this.ambientOscillator = null;
+    this.ambientGain = null;
+  }
+
+  step() {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (now - this.lastStepAt < 260) return;
+    this.lastStepAt = now;
+    this.noise(0.075, 0.045, 480);
+    this.tone(92, 0.075, "triangle", 0.045, -120, 0.008);
   }
 }
 
