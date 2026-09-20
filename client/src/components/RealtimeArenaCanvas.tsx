@@ -10,8 +10,8 @@ type Enemy = { id: string; position: Vec; aim: Vec; patrol: Vec[]; patrolIndex: 
 type Runtime = { player: Vec; aim: Vec; joystick: Vec; bullets: Bullet[]; enemies: Enemy[]; hp: number; shots: number; hits: number; started: number; running: boolean; nextBulletId: number; };
 
 const WORLD = { w: 960, h: 620 };
-// Uniform camera scale: avoids the previous 100vw/100dvh stretch and gives a tactical zoom-out.
-const CAMERA_ZOOM = 0.82;
+const LOGICAL_WIDTH = WORLD.w;
+const LOGICAL_HEIGHT = WORLD.h;
 const PLAYER_R = 17;
 const obstacles = [
   { x: 110, y: 88, w: 230, h: 28, kind: "concrete", label: "CONCRETE" },
@@ -48,18 +48,14 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
   const [hostileCount, setHostileCount] = useState(4);
   const joystickPointer = useRef<number | null>(null);
 
-  const getCamera = (s: Runtime, viewW: number, viewH: number) => {
-    const visibleW = viewW / CAMERA_ZOOM;
-    const visibleH = viewH / CAMERA_ZOOM;
-    return {
-      x: visibleW >= WORLD.w ? WORLD.w / 2 : clamp(s.player.x, visibleW / 2, WORLD.w - visibleW / 2),
-      y: visibleH >= WORLD.h ? WORLD.h / 2 : clamp(s.player.y, visibleH / 2, WORLD.h - visibleH / 2),
-    };
+  const getViewportTransform = (viewW: number, viewH: number) => {
+    const scale = Math.min(viewW / LOGICAL_WIDTH, viewH / LOGICAL_HEIGHT);
+    return { scale, offsetX: (viewW - LOGICAL_WIDTH * scale) / 2, offsetY: (viewH - LOGICAL_HEIGHT * scale) / 2 };
   };
-  const applyCamera = (ctx: CanvasRenderingContext2D, camera: Vec, viewW: number, viewH: number) => {
-    ctx.translate(viewW / 2, viewH / 2);
-    ctx.scale(CAMERA_ZOOM, CAMERA_ZOOM);
-    ctx.translate(-camera.x, -camera.y);
+  const applyCamera = (ctx: CanvasRenderingContext2D, viewW: number, viewH: number) => {
+    const { scale, offsetX, offsetY } = getViewportTransform(viewW, viewH);
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
   };
 
   const drawOperator = (ctx: CanvasRenderingContext2D, position: Vec, actor: "player" | "enemy", uniform: UniformId, weapon: WeaponId, aim: Vec, name: string) => {
@@ -81,12 +77,12 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
   };
 
   const draw = (ctx: CanvasRenderingContext2D, dpr: number, viewW: number, viewH: number) => {
-    const s = runtime.current; const camera = getCamera(s, viewW, viewH);
+    const s = runtime.current;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, viewW, viewH);
-    ctx.save(); applyCamera(ctx, camera, viewW, viewH); drawScene(ctx, s, false); ctx.restore();
+    ctx.save(); applyCamera(ctx, viewW, viewH); drawScene(ctx, s, false); ctx.restore();
     ctx.fillStyle = "rgba(0,0,0,.985)"; ctx.fillRect(0, 0, viewW, viewH);
-    ctx.save(); applyCamera(ctx, camera, viewW, viewH); ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "white"; ctx.fill(visionPath(s)); ctx.beginPath(); ctx.arc(s.player.x, s.player.y, 92, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-    ctx.save(); applyCamera(ctx, camera, viewW, viewH); ctx.globalCompositeOperation = "destination-over"; ctx.clip(visionPath(s)); drawScene(ctx, s, true); ctx.restore(); ctx.globalCompositeOperation = "source-over";
+    ctx.save(); applyCamera(ctx, viewW, viewH); ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "white"; ctx.fill(visionPath(s)); ctx.beginPath(); ctx.arc(s.player.x, s.player.y, 92, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.save(); applyCamera(ctx, viewW, viewH); ctx.globalCompositeOperation = "destination-over"; ctx.clip(visionPath(s)); drawScene(ctx, s, true); ctx.restore(); ctx.globalCompositeOperation = "source-over";
   };
 
   const finish = (victory: boolean) => { if (!runtime.current.running) return; runtime.current.running = false; onFinish({ victory, shots: runtime.current.shots, hits: runtime.current.hits, seconds: Math.round((performance.now() - runtime.current.started) / 1000), rounds: Math.max(1, Math.round((performance.now() - runtime.current.started) / 30000)) }); };
@@ -99,6 +95,6 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     } draw(context, window.devicePixelRatio || 1, viewW, viewH); frame.current = requestAnimationFrame(loop); }; frame.current = requestAnimationFrame(loop); return () => { cancelAnimationFrame(frame.current); observer.disconnect(); tacticalAudio.stopAmbient(); }; }, [loadout.weapon]);
 
   const updateJoystick = (event: React.PointerEvent<HTMLDivElement>) => { const rect = event.currentTarget.getBoundingClientRect(); const dx = event.clientX - (rect.left + rect.width / 2); const dy = event.clientY - (rect.top + rect.height / 2); const radius = rect.width * .38; const length = Math.min(radius, Math.hypot(dx, dy)); const angle = Math.atan2(dy, dx); runtime.current.joystick = { x: Math.cos(angle) * (length / radius), y: Math.sin(angle) * (length / radius) }; setJoystickActive(true); };
-  const updateAim = (event: React.PointerEvent<HTMLCanvasElement>) => { const rect = event.currentTarget.getBoundingClientRect(); const viewW = rect.width; const viewH = rect.height; const camera = getCamera(runtime.current, viewW, viewH); const target = { x: camera.x + (event.clientX - rect.left - viewW / 2) / CAMERA_ZOOM, y: camera.y + (event.clientY - rect.top - viewH / 2) / CAMERA_ZOOM }; runtime.current.aim = normalize({ x: target.x - runtime.current.player.x, y: target.y - runtime.current.player.y }); };
+  const updateAim = (event: React.PointerEvent<HTMLCanvasElement>) => { const rect = event.currentTarget.getBoundingClientRect(); const { scale, offsetX, offsetY } = getViewportTransform(rect.width, rect.height); const target = { x: (event.clientX - rect.left - offsetX) / scale, y: (event.clientY - rect.top - offsetY) / scale }; runtime.current.aim = normalize({ x: target.x - runtime.current.player.x, y: target.y - runtime.current.player.y }); };
   return <div className="realtime-arena"><canvas ref={canvasRef} className="realtime-canvas" onPointerMove={updateAim} onPointerDown={(event) => { updateAim(event); if (event.clientX > event.currentTarget.getBoundingClientRect().left + event.currentTarget.getBoundingClientRect().width * .48) fire(); }} aria-label="Arena top-down com fog of war" /><div className="realtime-hud"><span>HP <b>{hp}%</b></span><span>BBs <b>{shotCount}</b></span><span>HOSTIS <b>{hostileCount}</b></span><button type="button" onClick={() => { tacticalAudio.ui(); onExit(); }}>QG</button></div><div className="joystick" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); joystickPointer.current = event.pointerId; updateJoystick(event); }} onPointerMove={(event) => { if (joystickPointer.current === event.pointerId) updateJoystick(event); }} onPointerUp={() => { joystickPointer.current = null; runtime.current.joystick = { x: 0, y: 0 }; setJoystickActive(false); }} onPointerCancel={() => { joystickPointer.current = null; runtime.current.joystick = { x: 0, y: 0 }; setJoystickActive(false); }}><div className={`joystick-knob ${joystickActive ? "active" : ""}`} /></div><button type="button" className="fire-control" onPointerDown={(event) => { event.stopPropagation(); fire(); }}>{fireReady ? "FIRE" : "READY"}</button><div className="realtime-hint">FOG OF WAR • FLASHLIGHT ATIVA</div></div>;
 }
