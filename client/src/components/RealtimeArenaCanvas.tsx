@@ -9,33 +9,30 @@ type Bullet = { id: number; position: Vec; velocity: Vec; team: "player" | "enem
 type Enemy = { id: string; position: Vec; aim: Vec; patrol: Vec[]; patrolIndex: number; alerted: boolean; cooldown: number; uniform: UniformId; weapon: WeaponId; name: string; };
 type Runtime = { player: Vec; aim: Vec; joystick: Vec; bullets: Bullet[]; enemies: Enemy[]; hp: number; shots: number; hits: number; started: number; running: boolean; nextBulletId: number; };
 
-const BASE_WORLD = { w: 960, h: 620 };
-const WORLD = { w: 1600, h: 1000 };
-const MAP_SCALE = { x: WORLD.w / BASE_WORLD.w, y: WORLD.h / BASE_WORLD.h };
-const scalePoint = (point: Vec): Vec => ({ x: point.x * MAP_SCALE.x, y: point.y * MAP_SCALE.y });
+const WORLD = { w: 1400, h: 900 };
 const LOGICAL_WIDTH = WORLD.w;
 const LOGICAL_HEIGHT = WORLD.h;
-const VISION_RADIUS = 260 * MAP_SCALE.x;
-const NEAR_VISION_RADIUS = 92 * MAP_SCALE.x;
-const ENEMY_ALERT_RADIUS = 390 * MAP_SCALE.x;
-const ENEMY_SIGHT_RADIUS = 560 * MAP_SCALE.x;
+const VISION_RADIUS = 320;
+const NEAR_VISION_RADIUS = 110;
+const ENEMY_ALERT_RADIUS = 450;
+const ENEMY_SIGHT_RADIUS = 650;
 const PLAYER_R = 17;
 const obstacles = [
-  { x: 110, y: 88, w: 230, h: 28, kind: "concrete", label: "CONCRETE" },
-  { x: 420, y: 72, w: 34, h: 198, kind: "concrete", label: "WALL" },
-  { x: 570, y: 110, w: 250, h: 30, kind: "wood", label: "WOOD" },
-  { x: 680, y: 205, w: 34, h: 180, kind: "concrete", label: "WALL" },
-  { x: 180, y: 340, w: 210, h: 30, kind: "wood", label: "WOOD" },
-  { x: 475, y: 430, w: 290, h: 34, kind: "concrete", label: "CONCRETE" },
-  { x: 75, y: 470, w: 34, h: 95, kind: "concrete", label: "WALL" },
-].map((box) => ({ ...box, x: box.x * MAP_SCALE.x, y: box.y * MAP_SCALE.y, w: box.w * MAP_SCALE.x, h: box.h * MAP_SCALE.y }));
+  { x: 160, y: 128, w: 335, h: 41, kind: "concrete", label: "CONCRETE" },
+  { x: 613, y: 105, w: 50, h: 287, kind: "concrete", label: "WALL" },
+  { x: 831, y: 160, w: 365, h: 44, kind: "wood", label: "WOOD" },
+  { x: 992, y: 298, w: 50, h: 261, kind: "concrete", label: "WALL" },
+  { x: 263, y: 494, w: 306, h: 44, kind: "wood", label: "WOOD" },
+  { x: 692, y: 624, w: 422, h: 49, kind: "concrete", label: "CONCRETE" },
+  { x: 109, y: 684, w: 50, h: 138, kind: "concrete", label: "WALL" },
+];
 const patrolRoutes: Vec[][] = [
-  [{ x: 790, y: 320 }, { x: 835, y: 500 }, { x: 555, y: 365 }, { x: 790, y: 70 }],
-  [{ x: 520, y: 340 }, { x: 360, y: 285 }, { x: 350, y: 525 }, { x: 530, y: 565 }],
-  [{ x: 850, y: 75 }, { x: 880, y: 195 }, { x: 735, y: 185 }, { x: 555, y: 90 }],
-  [{ x: 820, y: 555 }, { x: 410, y: 550 }, { x: 410, y: 300 }, { x: 820, y: 390 }],
-].map((route) => route.map(scalePoint));
-const enemySpawn: Vec[] = [{ x: 790, y: 320 }, { x: 520, y: 340 }, { x: 850, y: 75 }, { x: 820, y: 555 }].map(scalePoint);
+  [{ x: 1151, y: 465 }, { x: 1217, y: 726 }, { x: 809, y: 530 }, { x: 1151, y: 102 }],
+  [{ x: 758, y: 494 }, { x: 525, y: 414 }, { x: 510, y: 762 }, { x: 772, y: 820 }],
+  [{ x: 1239, y: 109 }, { x: 1283, y: 284 }, { x: 1072, y: 269 }, { x: 809, y: 131 }],
+  [{ x: 1192, y: 806 }, { x: 597, y: 798 }, { x: 597, y: 435 }, { x: 1192, y: 568 }],
+];
+const enemySpawn: Vec[] = [{ x: 1151, y: 465 }, { x: 758, y: 494 }, { x: 1239, y: 109 }, { x: 1192, y: 806 }];
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 const normalize = (vector: Vec): Vec => { const length = Math.hypot(vector.x, vector.y) || 1; return { x: vector.x / length, y: vector.y / length }; };
@@ -47,7 +44,7 @@ const hasLineOfSight = (from: Vec, to: Vec) => { const delta = { x: to.x - from.
 
 export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const runtime = useRef<Runtime>({ player: { x: 150, y: 270 }, aim: { x: 1, y: 0 }, joystick: { x: 0, y: 0 }, bullets: [], enemies: enemySpawn.map((position, index) => ({ id: `hostile-${index + 1}`, position, aim: { x: -1, y: 0 }, patrol: patrolRoutes[index], patrolIndex: 0, alerted: false, cooldown: 1.2 + index * .25, uniform: index === 1 ? "all-black" : index === 2 ? "woodland" : rival.uniform, weapon: index === 1 ? "smg" : index === 2 ? "sniper" : rival.weapon, name: index === 0 ? rival.operatorName : `${rival.teamName}-${String(index + 1).padStart(2, "0")}` })), hp: 100, shots: 0, hits: 0, started: performance.now(), running: true, nextBulletId: 1 });
+  const runtime = useRef<Runtime>({ player: { x: 220, y: 390 }, aim: { x: 1, y: 0 }, joystick: { x: 0, y: 0 }, bullets: [], enemies: enemySpawn.map((position, index) => ({ id: `hostile-${index + 1}`, position, aim: { x: -1, y: 0 }, patrol: patrolRoutes[index], patrolIndex: 0, alerted: false, cooldown: 1.2 + index * .25, uniform: index === 1 ? "all-black" : index === 2 ? "woodland" : rival.uniform, weapon: index === 1 ? "smg" : index === 2 ? "sniper" : rival.weapon, name: index === 0 ? rival.operatorName : `${rival.teamName}-${String(index + 1).padStart(2, "0")}` })), hp: 100, shots: 0, hits: 0, started: performance.now(), running: true, nextBulletId: 1 });
   const [joystickActive, setJoystickActive] = useState(false);
   const [fireReady, setFireReady] = useState(true);
   const [hp, setHp] = useState(100);
