@@ -9,9 +9,9 @@ type Bullet = { id: number; position: Vec; velocity: Vec; team: "player" | "enem
 type Enemy = { id: string; position: Vec; aim: Vec; patrol: Vec[]; patrolIndex: number; alerted: boolean; cooldown: number; uniform: UniformId; weapon: WeaponId; name: string; };
 type Runtime = { player: Vec; aim: Vec; joystick: Vec; bullets: Bullet[]; enemies: Enemy[]; hp: number; shots: number; hits: number; started: number; running: boolean; nextBulletId: number; };
 
-const WORLD = { w: 1400, h: 900 };
-const LANDSCAPE_LOGICAL = { w: WORLD.w, h: WORLD.h };
-const PORTRAIT_LOGICAL = { w: WORLD.h, h: WORLD.w };
+const LOGICAL_WIDTH = 1200;
+const LOGICAL_HEIGHT = 800;
+const WORLD = { w: LOGICAL_WIDTH, h: LOGICAL_HEIGHT };
 const VISION_RADIUS = 220;
 const NEAR_VISION_RADIUS = 78;
 const ENEMY_ALERT_RADIUS = 450;
@@ -52,24 +52,18 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
   const [hostileCount, setHostileCount] = useState(4);
   const joystickPointer = useRef<number | null>(null);
 
-  const getViewportTransform = (viewW: number, viewH: number, focus: Vec = runtime.current.player) => {
-    const portrait = viewH > viewW;
-    const logical = portrait ? PORTRAIT_LOGICAL : LANDSCAPE_LOGICAL;
-    const LOGICAL_WIDTH = logical.w;
-    const LOGICAL_HEIGHT = logical.h;
-    const scale = Math.max(viewW / LOGICAL_WIDTH, viewH / LOGICAL_HEIGHT);
-    const orientedFocus = portrait ? { x: focus.y, y: LOGICAL_HEIGHT - focus.x } : focus;
-    const centeredX = viewW / 2 - orientedFocus.x * scale;
-    const centeredY = viewH / 2 - orientedFocus.y * scale;
-    const offsetX = Math.min(0, Math.max(viewW - LOGICAL_WIDTH * scale, centeredX));
-    const offsetY = Math.min(0, Math.max(viewH - LOGICAL_HEIGHT * scale, centeredY));
-    return { portrait, logicalWidth: LOGICAL_WIDTH, logicalHeight: LOGICAL_HEIGHT, scale, offsetX, offsetY };
+  const getViewportTransform = (viewW: number, viewH: number) => {
+    const scale = Math.min(viewW / LOGICAL_WIDTH, viewH / LOGICAL_HEIGHT);
+    return {
+      scale,
+      offsetX: (viewW - LOGICAL_WIDTH * scale) / 2,
+      offsetY: (viewH - LOGICAL_HEIGHT * scale) / 2,
+    };
   };
   const applyCamera = (ctx: CanvasRenderingContext2D, viewW: number, viewH: number) => {
-    const { portrait, logicalHeight, scale, offsetX, offsetY } = getViewportTransform(viewW, viewH, runtime.current.player);
+    const { scale, offsetX, offsetY } = getViewportTransform(viewW, viewH);
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
-    if (portrait) { ctx.translate(0, logicalHeight); ctx.rotate(-Math.PI / 2); }
   };
 
   const drawOperator = (ctx: CanvasRenderingContext2D, position: Vec, actor: "player" | "enemy", uniform: UniformId, weapon: WeaponId, aim: Vec, name: string) => {
@@ -109,6 +103,6 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     } draw(context, window.devicePixelRatio || 1, viewW, viewH); frame.current = requestAnimationFrame(loop); }; frame.current = requestAnimationFrame(loop); return () => { cancelAnimationFrame(frame.current); observer.disconnect(); window.removeEventListener("resize", resizeAfterLayout); tacticalAudio.stopAmbient(); }; }, [loadout.weapon]);
 
   const updateJoystick = (event: React.PointerEvent<HTMLDivElement>) => { const rect = event.currentTarget.getBoundingClientRect(); const dx = event.clientX - (rect.left + rect.width / 2); const dy = event.clientY - (rect.top + rect.height / 2); const radius = rect.width * .38; const length = Math.min(radius, Math.hypot(dx, dy)); const angle = Math.atan2(dy, dx); runtime.current.joystick = { x: Math.cos(angle) * (length / radius), y: Math.sin(angle) * (length / radius) }; setJoystickActive(true); };
-  const updateAim = (event: React.PointerEvent<HTMLCanvasElement>) => { const rect = event.currentTarget.getBoundingClientRect(); const { portrait, logicalHeight, scale, offsetX, offsetY } = getViewportTransform(rect.width, rect.height); const logicalX = (event.clientX - rect.left - offsetX) / scale; const logicalY = (event.clientY - rect.top - offsetY) / scale; const target = portrait ? { x: logicalHeight - logicalY, y: logicalX } : { x: logicalX, y: logicalY }; runtime.current.aim = normalize({ x: target.x - runtime.current.player.x, y: target.y - runtime.current.player.y }); };
+  const updateAim = (event: React.PointerEvent<HTMLCanvasElement>) => { const rect = event.currentTarget.getBoundingClientRect(); const { scale, offsetX, offsetY } = getViewportTransform(rect.width, rect.height); const target = { x: (event.clientX - rect.left - offsetX) / scale, y: (event.clientY - rect.top - offsetY) / scale }; runtime.current.aim = normalize({ x: target.x - runtime.current.player.x, y: target.y - runtime.current.player.y }); };
   return <div className="realtime-arena"><canvas ref={canvasRef} className="realtime-canvas" onPointerMove={updateAim} onPointerDown={(event) => { updateAim(event); if (event.clientX > event.currentTarget.getBoundingClientRect().left + event.currentTarget.getBoundingClientRect().width * .48) fire(); }} aria-label="Arena top-down com fog of war" /><div className="realtime-hud"><span>HP <b>{hp}%</b></span><span>BBs <b>{shotCount}</b></span><span>HOSTIS <b>{hostileCount}</b></span><button type="button" onClick={() => { tacticalAudio.ui(); onExit(); }}>QG</button></div><div className="joystick" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); joystickPointer.current = event.pointerId; updateJoystick(event); }} onPointerMove={(event) => { if (joystickPointer.current === event.pointerId) updateJoystick(event); }} onPointerUp={() => { joystickPointer.current = null; runtime.current.joystick = { x: 0, y: 0 }; setJoystickActive(false); }} onPointerCancel={() => { joystickPointer.current = null; runtime.current.joystick = { x: 0, y: 0 }; setJoystickActive(false); }}><div className={`joystick-knob ${joystickActive ? "active" : ""}`} /></div><button type="button" className="fire-control" onPointerDown={(event) => { event.stopPropagation(); fire(); }}>{fireReady ? "FIRE" : "READY"}</button><div className="realtime-hint">FOG OF WAR • FLASHLIGHT ATIVA</div></div>;
 }
