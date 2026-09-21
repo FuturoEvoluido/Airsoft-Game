@@ -159,14 +159,14 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
   const drawScene = (ctx: CanvasRenderingContext2D, s: Runtime, visibleOnly: boolean) => {
     // Fundo Tático Texturizado Estilo Cidade Bullet Echo
     // --- ETAPA 1: PISO E GRID TÁTICO ESTILO BULLET ECHO ---
-    // 1. Cor de fundo base (Azul-escuro frio e profundo)
-    ctx.fillStyle = "#121620";
+    // 1. Cor de fundo base (Piso Tático Claro para destacar no facho)
+    ctx.fillStyle = "#5A677D";
     ctx.fillRect(0, 0, WORLD.w, WORLD.h);
 
     // 2. Desenho dos ladrilhos / azulejos do piso
     const tileSize = 60; // Tamanho dos blocos
     ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.035)"; // Linhas sutis de grade
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.15)"; // Linhas sutis de grade escuras
 
     ctx.beginPath();
     for (let x = 0; x <= WORLD.w; x += tileSize) {
@@ -199,20 +199,20 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     // --- ETAPA 2: PAREDES E OBSTÁCULOS ESTILO BULLET ECHO ---
     obstacles.forEach((obs) => {
       // 1. Sombra do obstáculo no chão (Profundidade top-down)
-      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-      ctx.fillRect(obs.x + 5, obs.y + 5, obs.w, obs.h);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+      ctx.fillRect(obs.x + 8, obs.y + 8, obs.w, obs.h);
 
-      // 2. Cor de topo sólida (Bloco escuro industrial)
-      ctx.fillStyle = "#0D111A";
+      // 2. Cor de topo sólida (Bloco sólido)
+      ctx.fillStyle = "#263040";
       ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
 
       // 3. Estrutura metálica interior (Linha interna sutil)
-      ctx.strokeStyle = "#1A2332";
+      ctx.strokeStyle = "#38455A";
       ctx.lineWidth = 1;
       ctx.strokeRect(obs.x + 2, obs.y + 2, obs.w - 4, obs.h - 4);
 
       // 4. Borda principal tática
-      ctx.strokeStyle = "#2B3A4E";
+      ctx.strokeStyle = "#1C2430";
       ctx.lineWidth = 2;
       ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
 
@@ -522,8 +522,18 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     nearCircle.arc(s.player.x, s.player.y, NEAR_VISION_RADIUS, 0, Math.PI * 2);
     darknessMask.addPath(nearCircle);
 
-    ctx.fillStyle = "rgba(4, 10, 8, 0.91)";
+    ctx.fillStyle = "rgba(8, 12, 18, 0.94)";
     ctx.fill(darknessMask, "evenodd");
+
+    // 2.5 FACHO DE LUZ VOLUMÉTRICO
+    ctx.save();
+    ctx.clip(visionPath(s));
+    const gradient = ctx.createRadialGradient(s.player.x, s.player.y, 0, s.player.x, s.player.y, VISION_RADIUS);
+    gradient.addColorStop(0, "rgba(255, 255, 240, 0.25)");
+    gradient.addColorStop(1, "rgba(255, 255, 240, 0.0)");
+    ctx.fillStyle = gradient;
+    ctx.fill(visionPath(s));
+    ctx.restore();
 
     // 3. Anel Acústico de Radar ao redor do Jogador (estilo Bullet Echo)
     ctx.strokeStyle = "rgba(89, 221, 199, 0.28)";
