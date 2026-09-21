@@ -348,50 +348,35 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     ctx.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
     ctx.clearRect(0, 0, viewport.viewW, viewport.viewH);
 
-    // 1. Renderiza o mundo base limpo
+    // 1. Renderiza o mundo base completo (player, inimigos, loot, projéteis)
     ctx.save();
     applyCamera(ctx, viewport);
     drawScene(ctx, s, false);
-    ctx.restore();
 
-    // 2. Máscara de Escuridão Fog of War / Visão de Lanterna (Estilo Bullet Echo)
-    ctx.save();
-    ctx.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
-    ctx.fillStyle = "rgba(4, 10, 8, 0.94)";
-    ctx.fillRect(0, 0, viewport.viewW, viewport.viewH);
-    ctx.restore();
+    // 2. Máscara de Escuridão Bullet Echo com regra evenodd:
+    //    - Grande retângulo escuro + facho da lanterna + círculo de proximidade
+    //    - evenodd: região dentro de número ímpar de subpaths = transparente (visível)
+    //    - Resultado: dentro do facho e do círculo de proximidade = cena visível
+    //                 fora = escuro/Fog of War
+    const darknessMask = new Path2D();
+    darknessMask.rect(-2000, -2000, WORLD.w + 4000, WORLD.h + 4000);
+    darknessMask.addPath(visionPath(s));
+    const nearCircle = new Path2D();
+    nearCircle.arc(s.player.x, s.player.y, NEAR_VISION_RADIUS, 0, Math.PI * 2);
+    darknessMask.addPath(nearCircle);
 
-    ctx.save();
-    applyCamera(ctx, viewport);
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = "white";
+    ctx.fillStyle = "rgba(4, 10, 8, 0.91)";
+    ctx.fill(darknessMask, "evenodd");
 
-    // Recorte do facho principal da lanterna
-    ctx.fill(visionPath(s));
-
-    // Recorte circular de visão próxima ao redor do operador
-    ctx.beginPath();
-    ctx.arc(s.player.x, s.player.y, NEAR_VISION_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    // 3. Re-renderiza elementos visíveis dentro da lanterna com brilho volumétrico
-    ctx.save();
-    applyCamera(ctx, viewport);
-    ctx.globalCompositeOperation = "destination-over";
-    ctx.clip(visionPath(s));
-    drawScene(ctx, s, true);
-    ctx.restore();
-
-    // Anel Acústico de Radar ao redor do Jogador
-    ctx.save();
-    applyCamera(ctx, viewport);
+    // 3. Anel Acústico de Radar ao redor do Jogador (estilo Bullet Echo)
     ctx.strokeStyle = "rgba(89, 221, 199, 0.28)";
     ctx.lineWidth = 1.2;
     ctx.setLineDash([6, 6]);
     ctx.beginPath();
     ctx.arc(s.player.x, s.player.y, HEARING_RADIUS, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.setLineDash([]);
+
     ctx.restore();
   };
 
