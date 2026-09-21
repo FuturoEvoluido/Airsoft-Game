@@ -156,7 +156,26 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     distance(s.player, position) <= NEAR_VISION_RADIUS ||
     (distance(s.player, position) <= VISION_RADIUS && Math.abs(Math.atan2(position.y - s.player.y, position.x - s.player.x) - Math.atan2(s.aim.y, s.aim.x)) < .5 && hasLineOfSight(s.player, position));
 
-  const drawScene = (ctx: CanvasRenderingContext2D, s: Runtime, visibleOnly: boolean) => {
+  const drawScene = (ctx: CanvasRenderingContext2D, s: Runtime, visibleOnly: boolean, viewport: Viewport) => {
+    // 1. Limpeza de fundo global (Fora dos limites do mapa)
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, viewport.viewW, viewport.viewH);
+
+    ctx.save(); // INICIA A CÂMERA
+
+    // 2. MATRIZ DE TRANSFORMAÇÃO (ZOOM E TRACKING)
+    if (s.player) {
+      const p = s.player;
+      const cameraZoom = 2.2; // Escala imersiva estilo Bullet Echo
+      
+      // Centraliza o ponto de âncora no meio da tela
+      ctx.translate(viewport.viewW / 2, viewport.viewH / 2);
+      // Aplica a escala gráfica
+      ctx.scale(cameraZoom, cameraZoom);
+      // Move o "mundo" na direção oposta ao jogador para mantê-lo no centro
+      ctx.translate(-p.x, -p.y);
+    }
+
     // Fundo Tático Texturizado Estilo Cidade Bullet Echo
     // --- ETAPA 1: PISO E GRID TÁTICO ESTILO BULLET ECHO ---
     // 1. Cor de fundo base (Piso Tático Claro para destacar no facho)
@@ -528,6 +547,17 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
         }
       });
     }
+
+    // Anel Acústico de Radar ao redor do Jogador (estilo Bullet Echo)
+    ctx.strokeStyle = "rgba(89, 221, 199, 0.28)";
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.arc(s.player.x, s.player.y, HEARING_RADIUS, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.restore(); // ENCERRA A CÂMERA (Para não afetar a UI estática)
   };
 
   const draw = (ctx: CanvasRenderingContext2D, viewport: Viewport) => {
@@ -537,18 +567,7 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
 
     // 1. Renderiza o mundo base completo (player, inimigos, loot, projéteis)
     ctx.save();
-    applyCamera(ctx, viewport);
-    drawScene(ctx, s, false);
-
-    // 3. Anel Acústico de Radar ao redor do Jogador (estilo Bullet Echo)
-    ctx.strokeStyle = "rgba(89, 221, 199, 0.28)";
-    ctx.lineWidth = 1.2;
-    ctx.setLineDash([6, 6]);
-    ctx.beginPath();
-    ctx.arc(s.player.x, s.player.y, HEARING_RADIUS, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
+    drawScene(ctx, s, false, viewport);
     ctx.restore();
   };
 
