@@ -12,8 +12,8 @@ type Runtime = { player: Vec; aim: Vec; joystick: Vec; bullets: Bullet[]; enemie
 const LOGICAL_WIDTH = 1200;
 const LOGICAL_HEIGHT = 800;
 const WORLD = { w: LOGICAL_WIDTH, h: LOGICAL_HEIGHT };
-const VISION_RADIUS = 220;
-const NEAR_VISION_RADIUS = 78;
+const VISION_RADIUS = 300;
+const NEAR_VISION_RADIUS = 90;
 const ENEMY_ALERT_RADIUS = 450;
 const ENEMY_SIGHT_RADIUS = 650;
 const PLAYER_R = 17;
@@ -52,16 +52,19 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
   const [hostileCount, setHostileCount] = useState(4);
   const joystickPointer = useRef<number | null>(null);
 
-  const getViewportTransform = (viewW: number, viewH: number) => {
-    const scale = Math.min(viewW / LOGICAL_WIDTH, viewH / LOGICAL_HEIGHT);
-    return {
-      scale,
-      offsetX: (viewW - LOGICAL_WIDTH * scale) / 2,
-      offsetY: (viewH - LOGICAL_HEIGHT * scale) / 2,
-    };
+  const getViewportTransform = (viewW: number, viewH: number, player: Vec = runtime.current.player) => {
+    const scale = Math.max(viewW / LOGICAL_WIDTH, viewH / LOGICAL_HEIGHT);
+    const scaledW = LOGICAL_WIDTH * scale;
+    const scaledH = LOGICAL_HEIGHT * scale;
+    const targetOffsetX = viewW / 2 - player.x * scale;
+    const targetOffsetY = viewH / 2 - player.y * scale;
+    const offsetX = clamp(targetOffsetX, viewW - scaledW, 0);
+    const offsetY = clamp(targetOffsetY, viewH - scaledH, 0);
+    return { scale, offsetX, offsetY };
   };
+
   const applyCamera = (ctx: CanvasRenderingContext2D, viewW: number, viewH: number) => {
-    const { scale, offsetX, offsetY } = getViewportTransform(viewW, viewH);
+    const { scale, offsetX, offsetY } = getViewportTransform(viewW, viewH, runtime.current.player);
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
   };
@@ -71,26 +74,154 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     ctx.save(); ctx.translate(position.x, position.y); ctx.rotate(angle); ctx.fillStyle = "rgba(0,0,0,.45)"; ctx.beginPath(); ctx.ellipse(0, 5, 22, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = uniformColor(uniform); ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, 4, 16, 14, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = actor === "player" ? "#263c38" : "#2d2527"; ctx.fillRect(-10, -4, 20, 13); ctx.fillStyle = "#10191a"; ctx.beginPath(); ctx.arc(0, -8, 11, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = accent; ctx.stroke(); ctx.fillStyle = "#8db3a3"; ctx.fillRect(-7, -9, 14, 3); const barrel = weapon === "sniper" ? 42 : weapon === "smg" ? 25 : 33; ctx.fillStyle = "#172321"; ctx.fillRect(8, -2, barrel, 5); ctx.fillStyle = accent; ctx.fillRect(14, -1, 12, 2); if (weapon === "sniper") { ctx.fillStyle = "#758a7a"; ctx.fillRect(18, -7, 12, 3); } if (weapon === "smg") { ctx.fillStyle = "#516e5d"; ctx.fillRect(13, 2, 4, 8); } ctx.restore(); ctx.fillStyle = accent; ctx.font = "800 11px Arial"; ctx.textAlign = "center"; ctx.fillText(name.slice(0, 14), position.x, position.y - 28);
   };
 
-  const visionPath = (s: Runtime) => { const path = new Path2D(); const origin = s.player; const radius = VISION_RADIUS; const spread = 0.42; const rays = 56; path.moveTo(origin.x, origin.y); for (let i = 0; i <= rays; i += 1) { const angle = Math.atan2(s.aim.y, s.aim.x) - spread + (spread * 2 * i / rays); const direction = { x: Math.cos(angle), y: Math.sin(angle) }; let length = radius; for (let step = 10; step <= radius; step += 10) { const point = { x: origin.x + direction.x * step, y: origin.y + direction.y * step }; if (blocked(point, 2)) { length = step; break; } } path.lineTo(origin.x + direction.x * length, origin.y + direction.y * length); } path.closePath(); path.moveTo(origin.x + NEAR_VISION_RADIUS, origin.y); path.arc(origin.x, origin.y, NEAR_VISION_RADIUS, 0, Math.PI * 2); return path; };
-  const visibleToPlayer = (s: Runtime, position: Vec) => distance(s.player, position) <= NEAR_VISION_RADIUS || (distance(s.player, position) <= VISION_RADIUS && Math.abs(Math.atan2(position.y - s.player.y, position.x - s.player.x) - Math.atan2(s.aim.y, s.aim.x)) < .44 && hasLineOfSight(s.player, position));
+  const visionPath = (s: Runtime) => {
+    const path = new Path2D();
+    const origin = s.player;
+    const radius = VISION_RADIUS;
+    const spread = 0.52;
+    const rays = 64;
+    path.moveTo(origin.x, origin.y);
+    for (let i = 0; i <= rays; i += 1) {
+      const angle = Math.atan2(s.aim.y, s.aim.x) - spread + (spread * 2 * i / rays);
+      const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+      let length = radius;
+      for (let step = 12; step <= radius; step += 12) {
+        const point = { x: origin.x + direction.x * step, y: origin.y + direction.y * step };
+        if (blocked(point, 2)) {
+          length = step;
+          break;
+        }
+      }
+      path.lineTo(origin.x + direction.x * length, origin.y + direction.y * length);
+    }
+    path.closePath();
+    path.moveTo(origin.x + NEAR_VISION_RADIUS, origin.y);
+    path.arc(origin.x, origin.y, NEAR_VISION_RADIUS, 0, Math.PI * 2);
+    return path;
+  };
+
+  const visibleToPlayer = (s: Runtime, position: Vec) => {
+    const d = distance(s.player, position);
+    if (d <= NEAR_VISION_RADIUS) return true;
+    if (d > VISION_RADIUS) return false;
+    const angleToTarget = Math.atan2(position.y - s.player.y, position.x - s.player.x);
+    const aimAngle = Math.atan2(s.aim.y, s.aim.x);
+    let diff = Math.abs(angleToTarget - aimAngle);
+    if (diff > Math.PI) diff = 2 * Math.PI - diff;
+    return diff < 0.55 && hasLineOfSight(s.player, position);
+  };
 
   const drawScene = (ctx: CanvasRenderingContext2D, s: Runtime, visibleOnly: boolean) => {
-    const bg = ctx.createLinearGradient(0, 0, WORLD.w, WORLD.h); bg.addColorStop(0, "#22312e"); bg.addColorStop(1, "#091110"); ctx.fillStyle = bg; ctx.fillRect(0, 0, WORLD.w, WORLD.h); ctx.globalAlpha = .18; ctx.strokeStyle = "#9eaf9f"; ctx.lineWidth = 1; for (let x = 20; x < WORLD.w; x += 48) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD.h); ctx.stroke(); } for (let y = 18; y < WORLD.h; y += 48) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD.w, y); ctx.stroke(); } ctx.globalAlpha = 1;
-    obstacles.forEach((box) => { ctx.fillStyle = box.kind === "wood" ? "#68442d" : "#4a5a58"; ctx.strokeStyle = box.kind === "wood" ? "#bd7a46" : "#9bad9f"; ctx.lineWidth = 2; ctx.fillRect(box.x, box.y, box.w, box.h); ctx.strokeRect(box.x, box.y, box.w, box.h); ctx.fillStyle = "rgba(8,14,13,.28)"; for (let i = box.x + 8; i < box.x + box.w; i += 22) ctx.fillRect(i, box.y + 5, 8, box.h - 10); ctx.fillStyle = "#c4d0c0"; ctx.font = "700 9px Arial"; ctx.textAlign = "left"; ctx.fillText(box.label, box.x + 8, box.y - 6); });
-    ctx.strokeStyle = "#d1b66b"; ctx.setLineDash([10, 7]); ctx.strokeRect(12, 12, WORLD.w - 24, WORLD.h - 24); ctx.setLineDash([]);
-    s.bullets.forEach((bullet) => { if (visibleOnly && bullet.team === "enemy" && !visibleToPlayer(s, bullet.position)) return; ctx.fillStyle = bullet.team === "player" ? "#d8fff0" : "#ff9e88"; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(bullet.position.x, bullet.position.y, 4, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; });
+    const bg = ctx.createLinearGradient(0, 0, WORLD.w, WORLD.h);
+    bg.addColorStop(0, "#1d2b27");
+    bg.addColorStop(1, "#0a1412");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, WORLD.w, WORLD.h);
+
+    ctx.globalAlpha = 0.22;
+    ctx.strokeStyle = "#82b89f";
+    ctx.lineWidth = 1;
+    for (let x = 24; x < WORLD.w; x += 48) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, WORLD.h);
+      ctx.stroke();
+    }
+    for (let y = 24; y < WORLD.h; y += 48) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(WORLD.w, y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    obstacles.forEach((box) => {
+      ctx.fillStyle = box.kind === "wood" ? "#633f28" : "#3e524e";
+      ctx.strokeStyle = box.kind === "wood" ? "#b87842" : "#8ca89a";
+      ctx.lineWidth = 2;
+      ctx.fillRect(box.x, box.y, box.w, box.h);
+      ctx.strokeRect(box.x, box.y, box.w, box.h);
+      ctx.fillStyle = "rgba(6, 12, 11, 0.35)";
+      for (let i = box.x + 8; i < box.x + box.w; i += 22) {
+        ctx.fillRect(i, box.y + 4, 8, box.h - 8);
+      }
+      ctx.fillStyle = "#b8d0c2";
+      ctx.font = "700 9px Arial";
+      ctx.textAlign = "left";
+      ctx.fillText(box.label, box.x + 8, box.y - 6);
+    });
+
+    ctx.strokeStyle = "#5bd6c3";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([12, 8]);
+    ctx.strokeRect(10, 10, WORLD.w - 20, WORLD.h - 20);
+    ctx.setLineDash([]);
+
+    s.bullets.forEach((bullet) => {
+      if (bullet.team === "enemy" && !visibleToPlayer(s, bullet.position)) return;
+      ctx.fillStyle = bullet.team === "player" ? "#d8fff0" : "#ff9e88";
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(bullet.position.x, bullet.position.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
     drawOperator(ctx, s.player, "player", loadout.uniform, loadout.weapon, s.aim, loadout.operatorName);
-    s.enemies.forEach((enemy) => { if (!visibleOnly || visibleToPlayer(s, enemy.position)) drawOperator(ctx, enemy.position, "enemy", enemy.uniform, enemy.weapon, { x: s.player.x - enemy.position.x, y: s.player.y - enemy.position.y }, enemy.name); });
-    ctx.fillStyle = "#101817"; ctx.fillRect(s.player.x - 24, s.player.y + 22, 48, 5); ctx.fillStyle = s.hp > 35 ? "#59ddc7" : "#ef6470"; ctx.fillRect(s.player.x - 24, s.player.y + 22, 48 * (s.hp / 100), 5);
+
+    s.enemies.forEach((enemy) => {
+      if (visibleToPlayer(s, enemy.position)) {
+        drawOperator(
+          ctx,
+          enemy.position,
+          "enemy",
+          enemy.uniform,
+          enemy.weapon,
+          { x: s.player.x - enemy.position.x, y: s.player.y - enemy.position.y },
+          enemy.name
+        );
+      }
+    });
+
+    ctx.fillStyle = "#101817";
+    ctx.fillRect(s.player.x - 24, s.player.y + 22, 48, 5);
+    ctx.fillStyle = s.hp > 35 ? "#59ddc7" : "#ef6470";
+    ctx.fillRect(s.player.x - 24, s.player.y + 22, 48 * (s.hp / 100), 5);
   };
 
   const draw = (ctx: CanvasRenderingContext2D, dpr: number, viewW: number, viewH: number) => {
     const s = runtime.current;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, viewW, viewH);
-    ctx.save(); applyCamera(ctx, viewW, viewH); drawScene(ctx, s, false); ctx.restore();
-    ctx.fillStyle = "rgba(0,0,0,.985)"; ctx.fillRect(0, 0, viewW, viewH);
-    ctx.save(); applyCamera(ctx, viewW, viewH); ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "white"; ctx.fill(visionPath(s)); ctx.beginPath(); ctx.arc(s.player.x, s.player.y, NEAR_VISION_RADIUS, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-    ctx.save(); applyCamera(ctx, viewW, viewH); ctx.globalCompositeOperation = "destination-over"; ctx.clip(visionPath(s)); drawScene(ctx, s, true); ctx.restore(); ctx.globalCompositeOperation = "source-over";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, viewW, viewH);
+
+    // 1. Draw tactical ambient environment (visible layout and obstacles)
+    ctx.save();
+    applyCamera(ctx, viewW, viewH);
+    drawScene(ctx, s, false);
+    ctx.restore();
+
+    // 2. Apply tactical night shadow over the scene
+    ctx.fillStyle = "rgba(4, 10, 8, 0.62)";
+    ctx.fillRect(0, 0, viewW, viewH);
+
+    // 3. Cut out the flashlight beam to 100% crystal-clear illumination
+    ctx.save();
+    applyCamera(ctx, viewW, viewH);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fillStyle = "white";
+    ctx.fill(visionPath(s));
+    ctx.restore();
+
+    // 4. Draw the illuminated scene in the cutout area (revealing enemies inside light cone)
+    ctx.save();
+    applyCamera(ctx, viewW, viewH);
+    ctx.globalCompositeOperation = "destination-over";
+    ctx.clip(visionPath(s));
+    drawScene(ctx, s, true);
+    ctx.restore();
+
+    ctx.globalCompositeOperation = "source-over";
   };
 
   const finish = (victory: boolean) => { if (!runtime.current.running) return; runtime.current.running = false; onFinish({ victory, shots: runtime.current.shots, hits: runtime.current.hits, seconds: Math.round((performance.now() - runtime.current.started) / 1000), rounds: Math.max(1, Math.round((performance.now() - runtime.current.started) / 30000)) }); };
@@ -103,6 +234,17 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     } draw(context, window.devicePixelRatio || 1, viewW, viewH); frame.current = requestAnimationFrame(loop); }; frame.current = requestAnimationFrame(loop); return () => { cancelAnimationFrame(frame.current); observer.disconnect(); window.removeEventListener("resize", resizeAfterLayout); tacticalAudio.stopAmbient(); }; }, [loadout.weapon]);
 
   const updateJoystick = (event: React.PointerEvent<HTMLDivElement>) => { const rect = event.currentTarget.getBoundingClientRect(); const dx = event.clientX - (rect.left + rect.width / 2); const dy = event.clientY - (rect.top + rect.height / 2); const radius = rect.width * .38; const length = Math.min(radius, Math.hypot(dx, dy)); const angle = Math.atan2(dy, dx); runtime.current.joystick = { x: Math.cos(angle) * (length / radius), y: Math.sin(angle) * (length / radius) }; setJoystickActive(true); };
-  const updateAim = (event: React.PointerEvent<HTMLCanvasElement>) => { const rect = event.currentTarget.getBoundingClientRect(); const { scale, offsetX, offsetY } = getViewportTransform(rect.width, rect.height); const target = { x: (event.clientX - rect.left - offsetX) / scale, y: (event.clientY - rect.top - offsetY) / scale }; runtime.current.aim = normalize({ x: target.x - runtime.current.player.x, y: target.y - runtime.current.player.y }); };
+  const updateAim = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const { scale, offsetX, offsetY } = getViewportTransform(rect.width, rect.height, runtime.current.player);
+    const target = {
+      x: (event.clientX - rect.left - offsetX) / scale,
+      y: (event.clientY - rect.top - offsetY) / scale,
+    };
+    runtime.current.aim = normalize({
+      x: target.x - runtime.current.player.x,
+      y: target.y - runtime.current.player.y,
+    });
+  };
   return <div className="realtime-arena"><canvas ref={canvasRef} className="realtime-canvas" onPointerMove={updateAim} onPointerDown={(event) => { updateAim(event); if (event.clientX > event.currentTarget.getBoundingClientRect().left + event.currentTarget.getBoundingClientRect().width * .48) fire(); }} aria-label="Arena top-down com fog of war" /><div className="realtime-hud"><span>HP <b>{hp}%</b></span><span>BBs <b>{shotCount}</b></span><span>HOSTIS <b>{hostileCount}</b></span><button type="button" onClick={() => { tacticalAudio.ui(); onExit(); }}>QG</button></div><div className="joystick" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); joystickPointer.current = event.pointerId; updateJoystick(event); }} onPointerMove={(event) => { if (joystickPointer.current === event.pointerId) updateJoystick(event); }} onPointerUp={() => { joystickPointer.current = null; runtime.current.joystick = { x: 0, y: 0 }; setJoystickActive(false); }} onPointerCancel={() => { joystickPointer.current = null; runtime.current.joystick = { x: 0, y: 0 }; setJoystickActive(false); }}><div className={`joystick-knob ${joystickActive ? "active" : ""}`} /></div><button type="button" className="fire-control" onPointerDown={(event) => { event.stopPropagation(); fire(); }}>{fireReady ? "FIRE" : "READY"}</button><div className="realtime-hint">FOG OF WAR • FLASHLIGHT ATIVA</div></div>;
 }
