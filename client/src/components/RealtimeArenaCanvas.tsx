@@ -254,6 +254,36 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     ctx.strokeRect(16, 16, WORLD.w - 32, WORLD.h - 32);
     ctx.setLineDash([]);
 
+    // --- 3. MÁSCARA DE ESCURIDÃO (FOG OF WAR COM RECORTE EVENODD) ---
+    ctx.save();
+    ctx.fillStyle = "rgba(12, 16, 24, 0.96)"; // Escuridão quase total
+    ctx.beginPath();
+
+    // 3.1 Forma principal: Retângulo cobrindo o mundo inteiro
+    ctx.rect(0, 0, WORLD.w, WORLD.h);
+
+    // 3.2 Formas subtrativas: Recortes de visão (no mesmo path)
+    if (s.player) {
+      const p = s.player;
+      const fov = Math.PI / 3;
+      const viewDist = 400;
+      const playerAngle = Math.atan2(s.aim.y, s.aim.x); // Adaptado para a estrutura do s.aim do projeto
+
+      // Recorte 1: Círculo de proximidade ao redor do player
+      ctx.moveTo(p.x + 80, p.y);
+      ctx.arc(p.x, p.y, 80, 0, Math.PI * 2, true);
+
+      // Recorte 2: Cone da lanterna direcional
+      ctx.moveTo(p.x, p.y);
+      ctx.arc(p.x, p.y, viewDist, playerAngle - fov / 2, playerAngle + fov / 2, false);
+      ctx.closePath(); 
+    }
+
+    // O segredo do recorte visual: fill com evenodd
+    ctx.fill("evenodd");
+    ctx.restore();
+    // ----------------------------------------------------------------
+
     // --- ETAPA 3: LOOT EMISSIVO NO CHÃO ESTILO BULLET ECHO ---
     s.loot.forEach((item) => {
       if (!item.active) return;
@@ -509,31 +539,6 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     ctx.save();
     applyCamera(ctx, viewport);
     drawScene(ctx, s, false);
-
-    // 2. Máscara de Escuridão Bullet Echo com regra evenodd:
-    //    - Grande retângulo escuro + facho da lanterna + círculo de proximidade
-    //    - evenodd: região dentro de número ímpar de subpaths = transparente (visível)
-    //    - Resultado: dentro do facho e do círculo de proximidade = cena visível
-    //                 fora = escuro/Fog of War
-    const darknessMask = new Path2D();
-    darknessMask.rect(-2000, -2000, WORLD.w + 4000, WORLD.h + 4000);
-    darknessMask.addPath(visionPath(s));
-    const nearCircle = new Path2D();
-    nearCircle.arc(s.player.x, s.player.y, NEAR_VISION_RADIUS, 0, Math.PI * 2);
-    darknessMask.addPath(nearCircle);
-
-    ctx.fillStyle = "rgba(8, 12, 18, 0.94)";
-    ctx.fill(darknessMask, "evenodd");
-
-    // 2.5 FACHO DE LUZ VOLUMÉTRICO
-    ctx.save();
-    ctx.clip(visionPath(s));
-    const gradient = ctx.createRadialGradient(s.player.x, s.player.y, 0, s.player.x, s.player.y, VISION_RADIUS);
-    gradient.addColorStop(0, "rgba(255, 255, 240, 0.25)");
-    gradient.addColorStop(1, "rgba(255, 255, 240, 0.0)");
-    ctx.fillStyle = gradient;
-    ctx.fill(visionPath(s));
-    ctx.restore();
 
     // 3. Anel Acústico de Radar ao redor do Jogador (estilo Bullet Echo)
     ctx.strokeStyle = "rgba(89, 221, 199, 0.28)";
