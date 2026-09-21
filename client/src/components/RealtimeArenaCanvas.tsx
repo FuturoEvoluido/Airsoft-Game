@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Loadout, RivalProfile, UniformId, WeaponId } from "../game/types";
 import { tacticalAudio } from "../lib/tacticalAudio";
+import { bg } from "date-fns/locale";
 
 export interface RealtimeResult { victory: boolean; shots: number; hits: number; seconds: number; rounds: number; }
 interface Props { loadout: Loadout; rival: RivalProfile; onFinish: (result: RealtimeResult) => void; onExit: () => void; }
@@ -243,11 +244,42 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
 
   const drawScene = (ctx: CanvasRenderingContext2D, s: Runtime, visibleOnly: boolean) => {
     // Fundo Tático Texturizado Estilo Cidade Bullet Echo
-    const bg = ctx.createLinearGradient(0, 0, WORLD.w, WORLD.h);
-    bg.addColorStop(0, "#192220");
-    bg.addColorStop(1, "#070d0c");
-    ctx.fillStyle = bg;
+    // --- ETAPA 1: PISO E GRID TÁTICO ESTILO BULLET ECHO ---
+    // 1. Cor de fundo base (Azul-escuro frio e profundo)
+    ctx.fillStyle = "#121620";
     ctx.fillRect(0, 0, WORLD.w, WORLD.h);
+
+    // 2. Desenho dos ladrilhos / azulejos do piso
+    const tileSize = 60; // Tamanho dos blocos
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.035)"; // Linhas sutis de grade
+
+    ctx.beginPath();
+    for (let x = 0; x <= WORLD.w; x += tileSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, WORLD.h);
+    }
+    for (let y = 0; y <= WORLD.h; y += tileSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(WORLD.w, y);
+    }
+    ctx.stroke();
+
+    // 3. Linhas de divisão de zonas/salas (Acentos dourados/amarelados sutis)
+    const zoneSize = tileSize * 5; // Divisões maiores de sala
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(235, 175, 40, 0.08)";
+
+    ctx.beginPath();
+    for (let x = 0; x <= WORLD.w; x += zoneSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, WORLD.h);
+    }
+    for (let y = 0; y <= WORLD.h; y += zoneSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(WORLD.w, y);
+    }
+    ctx.stroke();
 
     // Grid tático estilo piso industrial
     ctx.globalAlpha = 0.12;
