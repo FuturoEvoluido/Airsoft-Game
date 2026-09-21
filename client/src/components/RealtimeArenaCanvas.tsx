@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Loadout, RivalProfile, UniformId, WeaponId } from "../game/types";
 import { tacticalAudio } from "../lib/tacticalAudio";
-import { bg } from "date-fns/locale";
+
 
 export interface RealtimeResult { victory: boolean; shots: number; hits: number; seconds: number; rounds: number; }
 interface Props { loadout: Loadout; rival: RivalProfile; onFinish: (result: RealtimeResult) => void; onExit: () => void; }
@@ -126,93 +126,7 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     ctx.scale(viewport.scale, viewport.scale);
   };
 
-  const drawOperator = (ctx: CanvasRenderingContext2D, position: Vec, actor: "player" | "enemy", uniform: UniformId, weapon: WeaponId, aim: Vec, name: string, entityHp: number, entityArmor: number) => {
-    const accent = actor === "player" ? "#59ddc7" : "#ef6470";
-    const angle = Math.atan2(aim.y, aim.x);
 
-    ctx.save();
-    ctx.translate(position.x, position.y);
-    ctx.rotate(angle);
-
-    // Sombra do operador
-    ctx.fillStyle = "rgba(0,0,0,.5)";
-    ctx.beginPath();
-    ctx.ellipse(0, 5, 22, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Uniforme e Corpo
-    ctx.fillStyle = uniformColor(uniform);
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(0, 4, 16, 14, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = actor === "player" ? "#263c38" : "#2d2527";
-    ctx.fillRect(-10, -4, 20, 13);
-
-    // Cabeça e Capacete
-    ctx.fillStyle = "#10191a";
-    ctx.beginPath();
-    ctx.arc(0, -8, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = accent;
-    ctx.stroke();
-
-    ctx.fillStyle = "#8db3a3";
-    ctx.fillRect(-7, -9, 14, 3);
-
-    // Arma e Cano com Laser
-    const barrel = weapon === "sniper" ? 42 : weapon === "smg" ? 25 : 33;
-    ctx.fillStyle = "#172321";
-    ctx.fillRect(8, -2, barrel, 5);
-    ctx.fillStyle = accent;
-    ctx.fillRect(14, -1, 12, 2);
-
-    if (weapon === "sniper") {
-      ctx.fillStyle = "#758a7a";
-      ctx.fillRect(18, -7, 12, 3);
-    }
-    if (weapon === "smg") {
-      ctx.fillStyle = "#516e5d";
-      ctx.fillRect(13, 2, 4, 8);
-    }
-    ctx.restore();
-
-    // Linha Laser de Mira Tática Bullet Echo
-    ctx.save();
-    ctx.strokeStyle = actor === "player" ? "rgba(89, 221, 199, 0.45)" : "rgba(239, 100, 112, 0.35)";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(position.x, position.y);
-    ctx.lineTo(position.x + aim.x * 160, position.y + aim.y * 160);
-    ctx.stroke();
-    ctx.restore();
-
-    // Barra de Status Dupla Estilo Bullet Echo (HP Verde + Armadura Azul)
-    const barW = 52;
-    const barH = 4;
-    const startX = position.x - barW / 2;
-    const startY = position.y + 24;
-
-    ctx.fillStyle = "rgba(10, 15, 14, 0.85)";
-    ctx.fillRect(startX - 2, startY - 2, barW + 4, barH * 2 + 6);
-
-    // HP (Verde)
-    ctx.fillStyle = "#22c55e";
-    ctx.fillRect(startX, startY, barW * (Math.max(0, entityHp) / 100), barH);
-
-    // Armadura (Azul)
-    ctx.fillStyle = "#38bdf8";
-    ctx.fillRect(startX, startY + barH + 2, barW * (Math.max(0, entityArmor) / 100), barH);
-
-    // Nome do Operador
-    ctx.fillStyle = accent;
-    ctx.font = "800 10px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(`${name.toUpperCase()} [${Math.max(0, entityHp)}]`, position.x, position.y - 30);
-  };
 
   const visionPath = (s: Runtime) => {
     const path = new Path2D();
@@ -281,34 +195,57 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     }
     ctx.stroke();
 
-    // Grid tático estilo piso industrial
-    ctx.globalAlpha = 0.12;
-    ctx.strokeStyle = "#8fa392";
-    ctx.lineWidth = 1;
-    for (let x = 40; x < WORLD.w; x += 64) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD.h); ctx.stroke();
-    }
-    for (let y = 40; y < WORLD.h; y += 64) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD.w, y); ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
 
-    // Obstáculos e Paredes
-    obstacles.forEach((box) => {
-      ctx.fillStyle = box.kind === "wood" ? "#593924" : "#3d4d4b";
-      ctx.strokeStyle = box.kind === "wood" ? "#a86438" : "#839995";
+    // --- ETAPA 2: PAREDES E OBSTÁCULOS ESTILO BULLET ECHO ---
+    obstacles.forEach((obs) => {
+      // 1. Sombra do obstáculo no chão (Profundidade top-down)
+      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+      ctx.fillRect(obs.x + 5, obs.y + 5, obs.w, obs.h);
+
+      // 2. Cor de topo sólida (Bloco escuro industrial)
+      ctx.fillStyle = "#0D111A";
+      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+
+      // 3. Estrutura metálica interior (Linha interna sutil)
+      ctx.strokeStyle = "#1A2332";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(obs.x + 2, obs.y + 2, obs.w - 4, obs.h - 4);
+
+      // 4. Borda principal tática
+      ctx.strokeStyle = "#2B3A4E";
       ctx.lineWidth = 2;
-      ctx.fillRect(box.x, box.y, box.w, box.h);
-      ctx.strokeRect(box.x, box.y, box.w, box.h);
+      ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
 
-      ctx.fillStyle = "rgba(4,8,7,.35)";
-      for (let i = box.x + 10; i < box.x + box.w; i += 28) {
-        ctx.fillRect(i, box.y + 6, 10, box.h - 12);
-      }
-      ctx.fillStyle = "#b2c4ad";
-      ctx.font = "700 9px Arial";
-      ctx.textAlign = "left";
-      ctx.fillText(box.label, box.x + 8, box.y - 6);
+      // 5. Bisel de Luz Topo/Esquerda (Efeito de elevação 3D)
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.35)"; // Azul ciano tático
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      // Linha superior
+      ctx.moveTo(obs.x, obs.y);
+      ctx.lineTo(obs.x + obs.w, obs.y);
+      // Linha esquerda
+      ctx.moveTo(obs.x, obs.y);
+      ctx.lineTo(obs.x, obs.y + obs.h);
+      ctx.stroke();
+
+      // 6. Detalhes de cantos reforçados (Marcações táticas estilo Bullet Echo)
+      ctx.strokeStyle = "#38BDF8";
+      ctx.lineWidth = 2;
+      const cornerSize = Math.min(6, obs.w / 4, obs.h / 4);
+
+      // Canto Superior Esquerdo
+      ctx.beginPath();
+      ctx.moveTo(obs.x, obs.y + cornerSize);
+      ctx.lineTo(obs.x, obs.y);
+      ctx.lineTo(obs.x + cornerSize, obs.y);
+      ctx.stroke();
+
+      // Canto Inferior Direito
+      ctx.beginPath();
+      ctx.moveTo(obs.x + obs.w - cornerSize, obs.y + obs.h);
+      ctx.lineTo(obs.x + obs.w, obs.y + obs.h);
+      ctx.lineTo(obs.x + obs.w, obs.y + obs.h - cornerSize);
+      ctx.stroke();
     });
 
     // Limites da Arena
@@ -317,25 +254,59 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     ctx.strokeRect(16, 16, WORLD.w - 32, WORLD.h - 32);
     ctx.setLineDash([]);
 
-    // Desenho de Itens de Loot no Chão (Caixas de Suprimentos Estilo Bullet Echo)
+    // --- ETAPA 3: LOOT EMISSIVO NO CHÃO ESTILO BULLET ECHO ---
     s.loot.forEach((item) => {
       if (!item.active) return;
       if (visibleOnly && !visibleToPlayer(s, item.position)) return;
 
-      ctx.save();
-      ctx.translate(item.position.x, item.position.y);
-      ctx.fillStyle = "#d97706";
-      ctx.strokeStyle = "#f59e0b";
-      ctx.lineWidth = 2;
-      ctx.fillRect(-14, -14, 28, 28);
-      ctx.strokeRect(-14, -14, 28, 28);
+      const size = 30;
+      const x = item.position.x - size / 2;
+      const y = item.position.y - size / 2;
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "700 9px Arial";
+      // Configuração de cores por tipo de item
+      let primaryColor = "#FF7A00"; // Munição (Laranja Bullet Echo)
+      let label = "MUN";
+
+      if (item.type === "armor") {
+        primaryColor = "#00A3FF"; // Armadura (Azul elétrico)
+        label = "ARM";
+      } else if (item.type === "med") {
+        primaryColor = "#00E676"; // Vida (Verde neon)
+        label = "HP";
+      }
+
+      // 1. Glow / Aura de chão emissiva
+      ctx.save();
+      ctx.shadowColor = primaryColor;
+      ctx.shadowBlur = 14;
+
+      // Base da caixa escurecida com contorno brilhante
+      ctx.fillStyle = "#0A0E17";
+      ctx.strokeStyle = primaryColor;
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.roundRect(x, y, size, size, 6);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // 2. Núcleo colorido da caixa
+      ctx.fillStyle = primaryColor;
+      ctx.beginPath();
+      ctx.roundRect(x + 4, y + 4, size - 8, size - 8, 3);
+      ctx.fill();
+
+      // 3. Detalhes metálicos internos
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fillRect(x + 6, y + 6, size - 12, 3);
+
+      // 4. Texto/Símbolo central de identificação
+      ctx.fillStyle = "#000000";
+      ctx.font = "900 10px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(item.type === "ammo" ? "MUNI" : item.type === "armor" ? "ARM" : "HP", 0, 0);
-      ctx.restore();
+      ctx.fillText(label, item.position.x, item.position.y + 2);
     });
 
     // Projéteis
@@ -350,29 +321,183 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
       ctx.shadowBlur = 0;
     });
 
-    // Operador do Jogador
-    drawOperator(ctx, s.player, "player", loadout.uniform, loadout.weapon, s.aim, loadout.operatorName, s.hp, s.armor);
+    // --- ETAPA 4: OPERADORES, BARRAS DUPLAS, LASER E ANEL ACÚSTICO ---
 
-    // Inimigos
-    s.enemies.forEach((enemy) => {
-      const isVisible = visibleToPlayer(s, enemy.position);
-      if (!visibleOnly || isVisible) {
-        drawOperator(ctx, enemy.position, "enemy", enemy.uniform, enemy.weapon, normalize({ x: s.player.x - enemy.position.x, y: s.player.y - enemy.position.y }), enemy.name, enemy.hp, enemy.armor);
-      }
+    // FUNÇÃO AUXILIAR: Desenhar barra dupla e nome do operador estilo Bullet Echo
+    const drawOperatorUI = (
+      x: number,
+      y: number,
+      name: string,
+      hp: number,
+      maxHp: number,
+      armor: number,
+      maxArmor: number,
+      isPlayer: boolean
+    ) => {
+      const barW = 44;
+      const barH = 5;
+      const startX = x - barW / 2;
+      const startY = y - 38;
 
-      // Anel de Audição e Pulsos Acústicos para Inimigos Alertas no Escuro
-      const distToPlayer = distance(s.player, enemy.position);
-      if (!isVisible && distToPlayer <= HEARING_RADIUS && enemy.alerted) {
-        ctx.save();
-        ctx.strokeStyle = "rgba(239, 100, 112, 0.55)";
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.arc(enemy.position.x, enemy.position.y, 22 + Math.sin(performance.now() / 180) * 6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-    });
+      // Nome do Operador [HP] em cima
+      ctx.fillStyle = isPlayer ? "#00E676" : "#FF5252";
+      ctx.font = "bold 10px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`${name} [${Math.max(0, Math.round(hp))}]`, x, startY - 4);
+
+      // Fundo das barras
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.fillRect(startX - 1, startY - 1, barW + 2, barH * 2 + 3);
+
+      // Barra de HP (Verde)
+      const hpRatio = Math.max(0, Math.min(1, hp / maxHp));
+      ctx.fillStyle = "#00E676";
+      ctx.fillRect(startX, startY, barW * hpRatio, barH);
+
+      // Barra de Armadura (Azul)
+      const armorRatio = Math.max(0, Math.min(1, armor / maxArmor));
+      ctx.fillStyle = "#00A3FF";
+      ctx.fillRect(startX, startY + barH + 1, barW * armorRatio, barH);
+    };
+
+    // 1. LINHA LASER DE MIRA (Do jogador)
+    if (s.player) {
+      const p = s.player;
+      const playerAngle = Math.atan2(s.aim.y, s.aim.x);
+      const laserLength = 350;
+      const endX = p.x + Math.cos(playerAngle) * laserLength;
+      const endY = p.y + Math.sin(playerAngle) * laserLength;
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 40, 40, 0.65)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]); // Tracejado tático
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+
+      // Ponto laser de destino com glow
+      ctx.fillStyle = "#FF0000";
+      ctx.shadowColor = "#FF0000";
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(endX, endY, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 2. RENDERIZAÇÃO DO PLAYER OPERATOR
+    if (s.player) {
+      const p = s.player;
+      const playerAngle = Math.atan2(s.aim.y, s.aim.x);
+
+      // Corpo do Operador Top-Down
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(playerAngle);
+
+      // Sombra no chão
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.beginPath();
+      ctx.arc(2, 2, 16, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Borda Verde Neon de Destaque
+      ctx.strokeStyle = "#00E676";
+      ctx.lineWidth = 3;
+      ctx.fillStyle = "#1E293B";
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Arma/Direção
+      ctx.fillStyle = "#00E676";
+      ctx.fillRect(10, -3, 10, 6);
+
+      ctx.restore();
+
+      // UI do Player (Nome + HP + ARM)
+      drawOperatorUI(
+        p.x,
+        p.y,
+        loadout.operatorName || "OPERADOR",
+        s.hp,
+        100, // maxHp
+        s.armor,
+        100, // maxArmor
+        true
+      );
+    }
+
+    // 3. RENDERIZAÇÃO DOS INIMIGOS / HOSTIS
+    if (s.enemies) {
+      s.enemies.forEach((enemy, idx) => {
+        if (enemy.hp <= 0) return;
+        const isVisible = visibleToPlayer(s, enemy.position);
+
+        // Se o inimigo estiver visível (no facho do jogador)
+        if (!visibleOnly || isVisible) {
+          const enemyAim = normalize({ x: s.player.x - enemy.position.x, y: s.player.y - enemy.position.y });
+          const enemyAngle = Math.atan2(enemyAim.y, enemyAim.x);
+
+          ctx.save();
+          ctx.translate(enemy.position.x, enemy.position.y);
+          ctx.rotate(enemyAngle);
+
+          // Sombra
+          ctx.fillStyle = "rgba(0,0,0,0.4)";
+          ctx.beginPath();
+          ctx.arc(2, 2, 16, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Borda Vermelha
+          ctx.strokeStyle = "#FF3366";
+          ctx.lineWidth = 3;
+          ctx.fillStyle = "#2D121B";
+          ctx.beginPath();
+          ctx.arc(0, 0, 16, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // Arma
+          ctx.fillStyle = "#FF3366";
+          ctx.fillRect(10, -3, 10, 6);
+
+          ctx.restore();
+
+          // UI do Inimigo
+          drawOperatorUI(
+            enemy.position.x,
+            enemy.position.y,
+            enemy.name || `HOSTIL-${idx + 1}`,
+            enemy.hp,
+            100, // maxHp
+            enemy.armor,
+            100, // maxArmor
+            false
+          );
+        }
+
+        // ANEL ACÚSTICO PULSANTE (Som de passos na escuridão)
+        const distToPlayer = distance(s.player, enemy.position);
+        if (!isVisible && distToPlayer <= HEARING_RADIUS && enemy.alerted) {
+          ctx.save();
+          ctx.strokeStyle = "rgba(255, 75, 75, 0.75)";
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+
+          const time = performance.now() / 200;
+          const pulseRadius = 22 + Math.sin(time) * 4;
+
+          ctx.beginPath();
+          ctx.arc(enemy.position.x, enemy.position.y, pulseRadius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      });
+    }
   };
 
   const draw = (ctx: CanvasRenderingContext2D, viewport: Viewport) => {
