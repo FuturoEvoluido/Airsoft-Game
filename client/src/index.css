@@ -381,12 +381,12 @@ button, [role="button"] { touch-action: manipulation; }
 .realtime-hud span { padding: 5px 6px; border: 1px solid rgba(91,214,195,.25); background: rgba(7,18,15,.8); }
 .realtime-hud b { color: var(--teal); }
 .realtime-hud button { pointer-events: auto; margin-left: auto; padding: 5px 8px; border: 1px solid #3a5d4c; background: #122b22; color: var(--teal); font-size: 8px; }
-.joystick { position: absolute; left: 18px; bottom: 16px; width: 86px; height: 86px; border: 1px solid rgba(91,214,195,.48); border-radius: 50%; background: radial-gradient(circle, rgba(77,154,130,.28), rgba(12,30,24,.78)); box-shadow: inset 0 0 18px rgba(91,214,195,.12), 0 6px 24px rgba(0,0,0,.35); touch-action: none; }
+.joystick { position: absolute; left: max(40px, calc(20px + env(safe-area-inset-left))); bottom: max(36px, calc(20px + env(safe-area-inset-bottom))); width: 86px; height: 86px; border: 1px solid rgba(91,214,195,.48); border-radius: 50%; background: radial-gradient(circle, rgba(77,154,130,.28), rgba(12,30,24,.78)); box-shadow: inset 0 0 18px rgba(91,214,195,.12), 0 6px 24px rgba(0,0,0,.35); touch-action: none; z-index: 50; }
 .joystick::before, .joystick::after { content: ""; position: absolute; background: rgba(137,190,166,.24); }
 .joystick::before { left: 50%; top: 11px; bottom: 11px; width: 1px; } .joystick::after { top: 50%; left: 11px; right: 11px; height: 1px; }
 .joystick-knob { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; transform: translate(-50%, -50%); border: 1px solid #8ce7d1; border-radius: 50%; background: rgba(57,145,117,.7); box-shadow: 0 0 14px rgba(91,214,195,.6); transition: transform .08s ease-out; }
 .joystick-knob.active { background: rgba(92,215,178,.9); }
-.fire-control { position: absolute; right: 20px; bottom: 23px; width: 66px; height: 66px; border: 1px solid #ef6470; border-radius: 50%; background: radial-gradient(circle, #873e48, #351d26); color: #ffd7d7; font-size: 10px; font-weight: 900; letter-spacing: .08em; box-shadow: 0 0 20px rgba(239,100,112,.24); touch-action: none; }
+.fire-control { position: absolute; right: max(40px, calc(20px + env(safe-area-inset-right))); bottom: max(36px, calc(20px + env(safe-area-inset-bottom))); width: 72px; height: 72px; border: 1px solid #ef6470; border-radius: 50%; background: radial-gradient(circle, #873e48, #351d26); color: #ffd7d7; font-size: 10px; font-weight: 900; letter-spacing: .08em; box-shadow: 0 0 20px rgba(239,100,112,.24); touch-action: none; z-index: 50; }
 .fire-control:active { transform: scale(.94); }
 .realtime-hint { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); color: rgba(186,210,194,.62); font-size: 7px; letter-spacing: .08em; white-space: nowrap; pointer-events: none; }
 .realtime-legend { display: flex; justify-content: space-between; padding: 5px 8px 6px; color: #81948a; font-size: 8px; letter-spacing: .07em; }
@@ -396,7 +396,7 @@ button, [role="button"] { touch-action: manipulation; }
 .realtime-command small { display: block; color: #789387; font-size: 8px; margin-top: 4px; }
 .realtime-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 112px; }
 .realtime-badges b { border: 1px solid #3f6555; color: #8ed8bf; padding: 4px 5px; font-size: 7px; letter-spacing: .06em; }
-@media (max-height: 720px) { .realtime-command { padding: 6px 9px; } .realtime-command small { display: none; } .joystick { bottom: 10px; } .fire-control { bottom: 17px; } }
+@media (max-height: 720px) { .realtime-command { padding: 6px 9px; } .realtime-command small { display: none; } }
 
 /* Immersive full-bleed CQB viewport */
 .immersive-arena { position: fixed; inset: 0; z-index: 30; width: 100vw; height: 100dvh; min-height: 100dvh; max-height: none; max-width: none; padding: 0; margin: 0; overflow: hidden; background: #050a09; }
@@ -413,39 +413,71 @@ button, [role="button"] { touch-action: manipulation; }
 .immersive-actions .audio-toggle { background: rgba(4,16,13,.55); backdrop-filter: blur(5px); }
 .immersive-exit { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid rgba(207,238,220,.55); border-radius: 50%; background: rgba(5,15,12,.58); color: #e2f4e8; font-size: 23px; line-height: 1; box-shadow: 0 3px 15px rgba(0,0,0,.28); }
 .immersive-exit:active { transform: scale(.92); }
-.immersive-arena .realtime-hud { top: calc(58px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); right: calc(10px + env(safe-area-inset-right)); }
+.immersive-arena .realtime-hud { top: calc(52px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); right: auto; opacity: .85; }
 .immersive-arena .realtime-hud span { background: rgba(3,13,11,.68); backdrop-filter: blur(5px); }
 .immersive-arena .realtime-hud button { display: none; }
-.immersive-arena .joystick { left: calc(18px + env(safe-area-inset-left)); bottom: calc(24px + env(safe-area-inset-bottom)); background: radial-gradient(circle, rgba(77,154,130,.26), rgba(12,30,24,.52)); backdrop-filter: blur(4px); }
-.immersive-arena .fire-control { right: calc(22px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); width: 78px; height: 78px; background: radial-gradient(circle, rgba(135,62,72,.9), rgba(53,29,38,.72)); backdrop-filter: blur(4px); }
 .immersive-arena .realtime-hint { bottom: calc(8px + env(safe-area-inset-bottom)); opacity: .7; }
 .immersive-status { position: fixed; z-index: 6; left: calc(12px + env(safe-area-inset-left)); right: calc(12px + env(safe-area-inset-right)); bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; justify-content: space-between; color: rgba(205,228,212,.7); font-size: 8px; letter-spacing: .14em; pointer-events: none; text-shadow: 0 1px 4px #000; }
 .immersive-rival { color: rgba(255,161,164,.85); }
 .immersive-arena .result-overlay { z-index: 20; }
-@media (orientation: landscape) and (max-height: 560px) { .immersive-arena .joystick { width: 72px; height: 72px; bottom: 12px; } .immersive-arena .fire-control { width: 64px; height: 64px; bottom: 15px; } .immersive-arena .realtime-hud { top: 48px; } }
 
-/* Final viewport hardening: true edge-to-edge gameplay */
-html:has(.immersive-arena), body:has(.immersive-arena), #root:has(.immersive-arena) { position: fixed; inset: 0; width: 100vw; height: 100dvh; min-width: 100vw; min-height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; overflow: hidden; }
-.immersive-arena { position: fixed !important; inset: 0 !important; z-index: 9999 !important; width: 100vw !important; height: 100dvh !important; min-width: 100vw; min-height: 100dvh; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; }
-.immersive-arena .realtime-arena { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100dvh !important; min-width: 100vw; min-height: 100dvh; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden; }
-.immersive-arena .realtime-canvas { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-width: 0; min-height: 0; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden; }
-.immersive-status, .immersive-arena .realtime-hint { display: none !important; }
-.immersive-arena .realtime-hud { top: calc(52px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); right: auto; opacity: .78; }
-.immersive-arena .joystick { left: calc(24px + env(safe-area-inset-left)) !important; bottom: calc(28px + env(safe-area-inset-bottom)) !important; }
-.immersive-arena .fire-control { right: calc(28px + env(safe-area-inset-right)) !important; bottom: calc(34px + env(safe-area-inset-bottom)) !important; }
-@media (orientation: landscape) {
-  .immersive-arena .joystick { left: calc(32px + env(safe-area-inset-left)) !important; bottom: calc(28px + env(safe-area-inset-bottom)) !important; }
-  .immersive-arena .fire-control { right: calc(32px + env(safe-area-inset-right)) !important; bottom: calc(28px + env(safe-area-inset-bottom)) !important; }
-  .immersive-arena .realtime-hud { top: calc(14px + env(safe-area-inset-top)); opacity: .55; }
+/* Mobile Bullet Echo Combat Controls */
+.immersive-arena .joystick {
+  position: absolute !important;
+  left: max(48px, calc(28px + env(safe-area-inset-left))) !important;
+  bottom: max(40px, calc(24px + env(safe-area-inset-bottom))) !important;
+  width: 86px !important;
+  height: 86px !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(91,214,195,.55) !important;
+  background: radial-gradient(circle, rgba(77,154,130,.32), rgba(12,30,24,.82)) !important;
+  box-shadow: inset 0 0 18px rgba(91,214,195,.18), 0 6px 24px rgba(0,0,0,.45) !important;
+  backdrop-filter: blur(4px) !important;
+  touch-action: none !important;
+  z-index: 50 !important;
 }
 
-/* Absolute host-wrapper breakout for CQB gameplay */
-html:has(.immersive-arena), body:has(.immersive-arena), #root:has(.immersive-arena) { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important; min-width: 100vw !important; min-height: 100vh !important; min-height: 100dvh !important; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; z-index: 2147483647 !important; }
-.immersive-arena, .immersive-arena .realtime-arena { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important; min-width: 100vw !important; min-height: 100vh !important; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
-.immersive-arena .realtime-canvas { position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; min-width: 0 !important; min-height: 0 !important; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
-.immersive-arena { z-index: 2147483647 !important; }
-.immersive-arena .joystick { position: absolute !important; left: max(32px, env(safe-area-inset-left)) !important; bottom: max(32px, env(safe-area-inset-bottom)) !important; }
-.immersive-arena .fire-control { position: absolute !important; right: max(32px, env(safe-area-inset-right)) !important; bottom: max(36px, env(safe-area-inset-bottom)) !important; }
+.immersive-arena .fire-control {
+  position: absolute !important;
+  right: max(48px, calc(28px + env(safe-area-inset-right))) !important;
+  bottom: max(40px, calc(24px + env(safe-area-inset-bottom))) !important;
+  width: 76px !important;
+  height: 76px !important;
+  border-radius: 50% !important;
+  border: 1px solid #ef6470 !important;
+  background: radial-gradient(circle, rgba(145,62,72,.92), rgba(53,29,38,.82)) !important;
+  color: #ffd7d7 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  letter-spacing: .08em !important;
+  box-shadow: 0 0 22px rgba(239,100,112,.32) !important;
+  backdrop-filter: blur(4px) !important;
+  touch-action: none !important;
+  z-index: 50 !important;
+}
+
+@media (orientation: landscape) {
+  .immersive-arena .joystick {
+    left: max(58px, calc(36px + env(safe-area-inset-left))) !important;
+    bottom: max(40px, calc(24px + env(safe-area-inset-bottom))) !important;
+    width: 82px !important;
+    height: 82px !important;
+  }
+  .immersive-arena .fire-control {
+    right: max(58px, calc(36px + env(safe-area-inset-right))) !important;
+    bottom: max(40px, calc(24px + env(safe-area-inset-bottom))) !important;
+    width: 74px !important;
+    height: 74px !important;
+  }
+  .immersive-arena .realtime-hud { top: calc(14px + env(safe-area-inset-top)); opacity: .75; }
+}
+
+/* Final viewport hardening: true edge-to-edge gameplay */
+html:has(.immersive-arena), body:has(.immersive-arena), #root:has(.immersive-arena) { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
+.immersive-arena { position: fixed !important; inset: 0 !important; z-index: 9999 !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; }
+.immersive-arena .realtime-arena { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden; }
+.immersive-arena .realtime-canvas { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-width: 0; min-height: 0; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden; }
+.immersive-status, .immersive-arena .realtime-hint { display: none !important; }
 
 /* Canvas sizing contract: CSS pixels define the viewport; the engine owns the DPR buffer. */
 .immersive-arena .realtime-canvas, .realtime-canvas {
