@@ -113,13 +113,23 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     nextBulletId: 1,
   });
 
-  const [joystickActive, setJoystickActive] = useState(false);
   const [fireReady, setFireReady] = useState(true);
   const [hp, setHp] = useState(100);
   const [armor, setArmor] = useState(100);
   const [shotCount, setShotCount] = useState(0);
   const [hostileCount, setHostileCount] = useState(4);
-  const joystickPointer = useRef<number | null>(null);
+
+  // Twin-Stick state
+  const leftPointerId = useRef<number | null>(null);
+  const rightPointerId = useRef<number | null>(null);
+  const leftOrigin = useRef<Vec | null>(null);
+  const rightOrigin = useRef<Vec | null>(null);
+
+  // Refs for DOM manipulation without React re-renders
+  const leftBaseRef = useRef<HTMLDivElement>(null);
+  const leftKnobRef = useRef<HTMLDivElement>(null);
+  const rightBaseRef = useRef<HTMLDivElement>(null);
+  const rightKnobRef = useRef<HTMLDivElement>(null);
 
   const applyCamera = (ctx: CanvasRenderingContext2D, viewport: Viewport) => {
     ctx.translate(viewport.offsetX, viewport.offsetY);
@@ -131,9 +141,9 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
   const visionPath = (s: Runtime) => {
     const path = new Path2D();
     const origin = s.player;
-    const radius = VISION_RADIUS;
-    const spread = 0.45;
-    const rays = 64;
+    const radius = 400; // viewDist solicitado
+    const spread = Math.PI / 6; // metade do fov (Math.PI / 3)
+    const rays = 80;
     path.moveTo(origin.x, origin.y);
     for (let i = 0; i <= rays; i += 1) {
       const angle = Math.atan2(s.aim.y, s.aim.x) - spread + (spread * 2 * i / rays);
@@ -273,33 +283,31 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     ctx.strokeRect(16, 16, WORLD.w - 32, WORLD.h - 32);
     ctx.setLineDash([]);
 
-    // --- 3. MÁSCARA DE ESCURIDÃO (FOG OF WAR COM RECORTE EVENODD) ---
+    // --- 3. MÁSCARA DE ESCURIDÃO (FOG OF WAR COM destination-out) ---
     ctx.save();
+    
+    // 3.1 Forma principal: Retângulo escuro cobrindo tudo
     ctx.fillStyle = "rgba(12, 16, 24, 0.96)"; // Escuridão quase total
-    ctx.beginPath();
+    ctx.fillRect(0, 0, WORLD.w, WORLD.h);
 
-    // 3.1 Forma principal: Retângulo cobrindo o mundo inteiro
-    ctx.rect(0, 0, WORLD.w, WORLD.h);
+    // 3.2 Altera composite mode para APAGAR a escuridão
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fillStyle = "rgba(0, 0, 0, 1)"; // Cor opaca para garantir remoção 100%
 
-    // 3.2 Formas subtrativas: Recortes de visão (no mesmo path)
+    // 3.3 Formas subtrativas: Recortes de visão
     if (s.player) {
       const p = s.player;
-      const fov = Math.PI / 3;
-      const viewDist = 400;
-      const playerAngle = Math.atan2(s.aim.y, s.aim.x); // Adaptado para a estrutura do s.aim do projeto
-
+      
       // Recorte 1: Círculo de proximidade ao redor do player
-      ctx.moveTo(p.x + 80, p.y);
-      ctx.arc(p.x, p.y, 80, 0, Math.PI * 2, true);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 80, 0, Math.PI * 2);
+      ctx.fill();
 
-      // Recorte 2: Cone da lanterna direcional
-      ctx.moveTo(p.x, p.y);
-      ctx.arc(p.x, p.y, viewDist, playerAngle - fov / 2, playerAngle + fov / 2, false);
-      ctx.closePath(); 
+      // Recorte 2: Cone da lanterna direcional (AGORA COM RAYCASTING!)
+      ctx.fill(visionPath(s));
     }
 
-    // O segredo do recorte visual: fill com evenodd
-    ctx.fill("evenodd");
+    // 3.4 Restaura o composite mode para não afetar o resto da renderização
     ctx.restore();
     // ----------------------------------------------------------------
 
@@ -771,22 +779,97 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     };
   }, [loadout.weapon]);
 
-  const updateJoystick = (event: React.PointerEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const dx = event.clientX - (rect.left + rect.width / 2);
-    const dy = event.clientY - (rect.top + rect.height / 2);
-    const radius = rect.width * .38;
-    const length = Math.min(radius, Math.hypot(dx, dy));
-    const angle = Math.atan2(dy, dx);
-    runtime.current.joystick = { x: Math.cos(angle) * (length / radius), y: Math.sin(angle) * (length / radius) };
-    setJoystickActive(true);
+  const handleLeftDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    leftPointerId.current = e.pointerId;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    leftOrigin.current = { x, y };
+
+    if (leftBaseRef.current && leftKnobRef.current) {
+      leftBaseRef.current.style.display = "block";
+      leftBaseRef.current.style.left = `${x}px`;
+      leftBaseRef.current.style.top = `${y}px`;
+      leftKnobRef.current.style.transform = `translate(-50%, -50%)`;
+      leftKnobRef.current.style.background = `rgba(92,215,178,.9)`; // active color
+    }
   };
 
-  const updateAim = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const { scale, offsetX, offsetY } = getViewportTransform(Math.max(1, rect.width), Math.max(1, rect.height), 1, Math.min(rect.width / LOGICAL_WIDTH, rect.height / LOGICAL_HEIGHT));
-    const target = { x: (event.clientX - rect.left - offsetX) / scale, y: (event.clientY - rect.top - offsetY) / scale };
-    runtime.current.aim = normalize({ x: target.x - runtime.current.player.x, y: target.y - runtime.current.player.y });
+  const handleLeftMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (leftPointerId.current !== e.pointerId || !leftOrigin.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const dx = x - leftOrigin.current.x;
+    const dy = y - leftOrigin.current.y;
+    const radius = 43; // max radius for knob (86/2)
+    const length = Math.min(radius, Math.hypot(dx, dy));
+    const angle = Math.atan2(dy, dx);
+    
+    runtime.current.joystick = { x: Math.cos(angle) * (length / radius), y: Math.sin(angle) * (length / radius) };
+
+    if (leftKnobRef.current) {
+      const knobX = Math.cos(angle) * length;
+      const knobY = Math.sin(angle) * length;
+      leftKnobRef.current.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+    }
+  };
+
+  const handleLeftUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (leftPointerId.current !== e.pointerId) return;
+    leftPointerId.current = null;
+    leftOrigin.current = null;
+    runtime.current.joystick = { x: 0, y: 0 };
+    if (leftBaseRef.current) leftBaseRef.current.style.display = "none";
+  };
+
+  const handleRightDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    rightPointerId.current = e.pointerId;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    rightOrigin.current = { x, y };
+
+    if (rightBaseRef.current && rightKnobRef.current) {
+      rightBaseRef.current.style.display = "block";
+      rightBaseRef.current.style.left = `${x}px`;
+      rightBaseRef.current.style.top = `${y}px`;
+      rightKnobRef.current.style.transform = `translate(-50%, -50%)`;
+      rightKnobRef.current.style.background = `rgba(92,215,178,.9)`;
+    }
+  };
+
+  const handleRightMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (rightPointerId.current !== e.pointerId || !rightOrigin.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const dx = x - rightOrigin.current.x;
+    const dy = y - rightOrigin.current.y;
+    
+    // Altera a mira se o movimento for considerável
+    if (Math.hypot(dx, dy) > 5) {
+      const angle = Math.atan2(dy, dx);
+      runtime.current.aim = { x: Math.cos(angle), y: Math.sin(angle) };
+    }
+    
+    const radius = 43;
+    const length = Math.min(radius, Math.hypot(dx, dy));
+    const angle = Math.atan2(dy, dx);
+    if (rightKnobRef.current) {
+      const knobX = Math.cos(angle) * length;
+      const knobY = Math.sin(angle) * length;
+      rightKnobRef.current.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+    }
+  };
+
+  const handleRightUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (rightPointerId.current !== e.pointerId) return;
+    rightPointerId.current = null;
+    rightOrigin.current = null;
+    if (rightBaseRef.current) rightBaseRef.current.style.display = "none";
   };
 
   return (
@@ -794,13 +877,28 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
       <canvas
         ref={canvasRef}
         className="realtime-canvas"
-        onPointerMove={updateAim}
-        onPointerDown={(event) => {
-          event.currentTarget.setPointerCapture(event.pointerId);
-          updateAim(event);
-        }}
         aria-label="Arena tática estilo Bullet Echo com Loot e Fog of War"
       />
+      
+      <div className="twin-stick-overlay">
+        <div 
+          className="touch-zone left-zone" 
+          onPointerDown={handleLeftDown} onPointerMove={handleLeftMove} onPointerUp={handleLeftUp} onPointerCancel={handleLeftUp}
+        >
+          <div className="joystick-base" ref={leftBaseRef} style={{ display: 'none' }}>
+             <div className="joystick-knob" ref={leftKnobRef} />
+          </div>
+        </div>
+        <div 
+          className="touch-zone right-zone"
+          onPointerDown={handleRightDown} onPointerMove={handleRightMove} onPointerUp={handleRightUp} onPointerCancel={handleRightUp}
+        >
+          <div className="joystick-base" ref={rightBaseRef} style={{ display: 'none' }}>
+             <div className="joystick-knob" ref={rightKnobRef} />
+          </div>
+        </div>
+      </div>
+
       <div className="realtime-hud">
         <span>HP <b>{hp}%</b></span>
         <span>ARM <b>{armor}%</b></span>
@@ -808,29 +906,7 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
         <span>HOSTIS <b>{hostileCount}</b></span>
         <button type="button" onClick={() => { tacticalAudio.ui(); onExit(); }}>QG</button>
       </div>
-      <div
-        className="joystick"
-        onPointerDown={(event) => {
-          event.currentTarget.setPointerCapture(event.pointerId);
-          joystickPointer.current = event.pointerId;
-          updateJoystick(event);
-        }}
-        onPointerMove={(event) => {
-          if (joystickPointer.current === event.pointerId) updateJoystick(event);
-        }}
-        onPointerUp={() => {
-          joystickPointer.current = null;
-          runtime.current.joystick = { x: 0, y: 0 };
-          setJoystickActive(false);
-        }}
-        onPointerCancel={() => {
-          joystickPointer.current = null;
-          runtime.current.joystick = { x: 0, y: 0 };
-          setJoystickActive(false);
-        }}
-      >
-        <div className={`joystick-knob ${joystickActive ? "active" : ""}`} />
-      </div>
+
       <button
         type="button"
         className="fire-control"
