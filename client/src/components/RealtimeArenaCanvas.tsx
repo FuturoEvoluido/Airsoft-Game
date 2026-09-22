@@ -8,7 +8,8 @@ interface Props { loadout: Loadout; rival: RivalProfile; onFinish: (result: Real
 type Vec = { x: number; y: number };
 type Viewport = { viewW: number; viewH: number; dpr: number; scale: number; offsetX: number; offsetY: number };
 type Bullet = { id: number; position: Vec; velocity: Vec; team: "player" | "enemy"; damage: number; ttl: number; sourceId: string; };
-type Enemy = { id: string; position: Vec; aim: Vec; patrol: Vec[]; patrolIndex: number; alerted: boolean; cooldown: number; uniform: UniformId; weapon: WeaponId; name: string; hp: number; armor: number; };
+type EnemyState = "patrol" | "investigate" | "combat";
+type Enemy = { id: string; position: Vec; aim: Vec; patrol: Vec[]; patrolIndex: number; state: EnemyState; lastKnownPosition: Vec | null; cooldown: number; uniform: UniformId; weapon: WeaponId; name: string; hp: number; armor: number; };
 type LootType = "ammo" | "armor" | "med";
 type LootItem = { id: number; type: LootType; position: Vec; value: number; active: boolean };
 type Runtime = { player: Vec; aim: Vec; joystick: Vec; bullets: Bullet[]; enemies: Enemy[]; loot: LootItem[]; hp: number; armor: number; shots: number; hits: number; started: number; running: boolean; nextBulletId: number; };
@@ -65,14 +66,61 @@ const blocked = (p: Vec, radius = PLAYER_R) => p.x < radius || p.y < radius || p
 const moveWithCollision = (from: Vec, delta: Vec, radius = PLAYER_R) => { const xTry = { x: from.x + delta.x, y: from.y }; const yTry = { x: from.x, y: from.y + delta.y }; const both = { x: from.x + delta.x, y: from.y + delta.y }; if (!blocked(both, radius)) return both; if (!blocked(xTry, radius)) return xTry; if (!blocked(yTry, radius)) return yTry; return from; };
 const uniformColor = (uniform: UniformId) => uniform === "all-black" ? "#182323" : uniform === "woodland" ? "#435a3d" : "#657450";
 
+type Segment = { p1: Vec; p2: Vec };
+
+const getLineSegments = (): Segment[] => {
+  const segments: Segment[] = [];
+  segments.push(
+    { p1: { x: 0, y: 0 }, p2: { x: WORLD.w, y: 0 } },
+    { p1: { x: WORLD.w, y: 0 }, p2: { x: WORLD.w, y: WORLD.h } },
+    { p1: { x: WORLD.w, y: WORLD.h }, p2: { x: 0, y: WORLD.h } },
+    { p1: { x: 0, y: WORLD.h }, p2: { x: 0, y: 0 } }
+  );
+  obstacles.forEach(obs => {
+    segments.push(
+      { p1: { x: obs.x, y: obs.y }, p2: { x: obs.x + obs.w, y: obs.y } },
+      { p1: { x: obs.x + obs.w, y: obs.y }, p2: { x: obs.x + obs.w, y: obs.y + obs.h } },
+      { p1: { x: obs.x + obs.w, y: obs.y + obs.h }, p2: { x: obs.x, y: obs.y + obs.h } },
+      { p1: { x: obs.x, y: obs.y + obs.h }, p2: { x: obs.x, y: obs.y } }
+    );
+  });
+  return segments;
+};
+
+const mapSegments = getLineSegments();
+
+const getRayIntersection = (rayOrigin: Vec, rayDir: Vec, seg: Segment) => {
+  const p0 = rayOrigin;
+  const p1 = { x: rayOrigin.x + rayDir.x, y: rayOrigin.y + rayDir.y };
+  const p2 = seg.p1;
+  const p3 = seg.p2;
+
+  const s1_x = p1.x - p0.x;
+  const s1_y = p1.y - p0.y;
+  const s2_x = p3.x - p2.x;
+  const s2_y = p3.y - p2.y;
+
+  const denom = (-s2_x * s1_y + s1_x * s2_y);
+  if (denom === 0) return null;
+
+  const s = (-s1_y * (p0.x - p2.x) + s1_x * (p0.y - p2.y)) / denom;
+  const t = ( s2_x * (p0.y - p2.y) - s2_y * (p0.x - p2.x)) / denom;
+
+  if (s >= 0 && s <= 1 && t >= 0) {
+    return { x: p0.x + (t * s1_x), y: p0.y + (t * s1_y), param: t };
+  }
+  return null;
+};
+
 const hasLineOfSight = (from: Vec, to: Vec) => {
-  const delta = { x: to.x - from.x, y: to.y - from.y };
-  const dist = Math.hypot(delta.x, delta.y);
-  if (dist < PLAYER_R + 6) return true;
-  const steps = Math.ceil(dist / 14);
-  for (let i = 1; i < steps; i += 1) {
-    const point = { x: from.x + delta.x * (i / steps), y: from.y + delta.y * (i / steps) };
-    if (obstacles.some((box) => circleHitsRect(point, 2, box))) return false;
+  const dir = { x: to.x - from.x, y: to.y - from.y };
+  const dist = Math.hypot(dir.x, dir.y);
+  if (dist === 0) return true;
+  const nDir = { x: dir.x / dist, y: dir.y / dist };
+  
+  for (let i = 0; i < mapSegments.length; i++) {
+    const hit = getRayIntersection(from, nDir, mapSegments[i]);
+    if (hit && hit.param < dist) return false;
   }
   return true;
 };
@@ -96,7 +144,8 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
       aim: { x: -1, y: 0 },
       patrol: patrolRoutes[index],
       patrolIndex: 0,
-      alerted: false,
+      state: "patrol" as EnemyState,
+      lastKnownPosition: null,
       cooldown: 1.2 + index * .25,
       uniform: index === 1 ? "all-black" : index === 2 ? "woodland" : rival.uniform,
       weapon: index === 1 ? "smg" : index === 2 ? "sniper" : rival.weapon,
@@ -161,7 +210,7 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     // 2. MATRIZ DE TRANSFORMAÇÃO (ZOOM E TRACKING)
     if (s.player) {
       const p = s.player;
-      const cameraZoom = 2.2; // Escala imersiva estilo Bullet Echo
+      const cameraZoom = 1.6; // Escala tática ampla
       
       // Centraliza o ponto de âncora no meio da tela
       ctx.translate(viewport.viewW / 2, viewport.viewH / 2);
@@ -557,7 +606,7 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
 
         // ANEL ACÚSTICO PULSANTE (Som de passos na escuridão)
         const distToPlayer = distance(s.player, enemy.position);
-        if (!isVisible && distToPlayer <= HEARING_RADIUS && enemy.alerted) {
+        if (!isVisible && distToPlayer <= HEARING_RADIUS && enemy.state !== "patrol") {
           ctx.save();
           ctx.strokeStyle = "rgba(255, 75, 75, 0.75)";
           ctx.lineWidth = 2;
@@ -627,7 +676,10 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     });
 
     s.enemies.forEach((enemy) => {
-      if (distance(enemy.position, s.player) < ENEMY_ALERT_RADIUS) enemy.alerted = true;
+      if (distance(enemy.position, s.player) < ENEMY_ALERT_RADIUS) {
+        enemy.state = "investigate";
+        enemy.lastKnownPosition = { ...s.player };
+      }
     });
 
     tacticalAudio.fire(loadout.weapon);
@@ -673,8 +725,16 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
       if (s.running) {
         const speed = loadout.weapon === "smg" ? 190 : loadout.weapon === "sniper" ? 130 : 160;
         const previousPlayer = s.player;
+        const movementMagnitude = Math.hypot(s.joystick.x, s.joystick.y);
         s.player = moveWithCollision(s.player, { x: s.joystick.x * speed * dt, y: s.joystick.y * speed * dt });
-        if (distance(previousPlayer, s.player) > .3) tacticalAudio.step();
+        
+        // Matriz de Ruído (Dinâmica Stealth)
+        let noiseLevel = 0;
+        if (distance(previousPlayer, s.player) > .3) {
+          tacticalAudio.step();
+          if (movementMagnitude > 0.8) noiseLevel = HEARING_RADIUS;
+          else if (movementMagnitude > 0.4) noiseLevel = HEARING_RADIUS * 0.5;
+        }
 
         // Verificação de Coleta de Loot (Itens no Chão)
         s.loot.forEach((item) => {
@@ -694,35 +754,83 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
           }
         });
 
-        // IA dos Inimigos
+        // IA dos Inimigos (State Machine - Stealth)
         s.enemies.forEach((enemy) => {
           const toPlayer = { x: s.player.x - enemy.position.x, y: s.player.y - enemy.position.y };
-          const dist = Math.hypot(toPlayer.x, toPlayer.y);
-          const seesPlayer = dist < ENEMY_SIGHT_RADIUS && hasLineOfSight(enemy.position, s.player);
-          if (seesPlayer || dist < HEARING_RADIUS) enemy.alerted = true;
-
-          const target = enemy.patrol[enemy.patrolIndex];
-          const patrolDirection = normalize({ x: target.x - enemy.position.x, y: target.y - enemy.position.y });
-          const chaseDirection = normalize(toPlayer);
-          const direction = enemy.alerted ? chaseDirection : patrolDirection;
-          const speedEnemy = enemy.weapon === "smg" ? 95 : enemy.weapon === "sniper" ? 36 : 62;
-          const moveDirection = enemy.alerted && enemy.weapon === "sniper" ? { x: -chaseDirection.x, y: -chaseDirection.y } : direction;
-
-          enemy.position = moveWithCollision(enemy.position, { x: moveDirection.x * speedEnemy * dt, y: moveDirection.y * speedEnemy * dt });
-          enemy.aim = toPlayer;
-
-          if (!enemy.alerted && distance(enemy.position, target) < 22) {
-            enemy.patrolIndex = (enemy.patrolIndex + 1) % enemy.patrol.length;
+          const distToPlayer = Math.hypot(toPlayer.x, toPlayer.y);
+          
+          // Lógica de Oclusão Exata e Sentidos
+          let seesPlayer = false;
+          if (distToPlayer < ENEMY_SIGHT_RADIUS && hasLineOfSight(enemy.position, s.player)) {
+             const angleToPlayer = Math.atan2(toPlayer.y, toPlayer.x);
+             const enemyAngle = Math.atan2(enemy.aim.y, enemy.aim.x);
+             let diff = Math.abs(angleToPlayer - enemyAngle);
+             if (diff > Math.PI) diff = Math.PI * 2 - diff;
+             // FOV 120 graus ou contato próximo
+             if (diff < Math.PI / 1.5 || distToPlayer < 60) seesPlayer = true;
           }
 
+          const hearsPlayer = distToPlayer < noiseLevel;
+
+          // Transições de Estado
+          if (seesPlayer) {
+            enemy.state = "combat";
+            enemy.lastKnownPosition = { ...s.player };
+          } else if (hearsPlayer) {
+            enemy.state = "investigate";
+            enemy.lastKnownPosition = { ...s.player };
+          } else if (enemy.state === "combat") {
+            // Perdeu contato visual: vai investigar a última posição conhecida
+            enemy.state = "investigate";
+          }
+
+          // Movimento baseado no Estado
+          let target: Vec;
+          let moveDirection = { x: 0, y: 0 };
+          const speedEnemy = enemy.weapon === "smg" ? 95 : enemy.weapon === "sniper" ? 36 : 62;
+
+          if (enemy.state === "combat") {
+            enemy.aim = normalize(toPlayer); // Trava mira
+            if (enemy.weapon === "sniper" && distToPlayer < 200) {
+              moveDirection = { x: -enemy.aim.x, y: -enemy.aim.y };
+            } else if (enemy.weapon === "smg" && distToPlayer > 150) {
+              moveDirection = { ...enemy.aim };
+            }
+          } else if (enemy.state === "investigate" && enemy.lastKnownPosition) {
+            target = enemy.lastKnownPosition;
+            const toTarget = { x: target.x - enemy.position.x, y: target.y - enemy.position.y };
+            const distToTarget = Math.hypot(toTarget.x, toTarget.y);
+            
+            if (distToTarget < 20) {
+              enemy.state = "patrol"; // Não encontrou, volta à patrulha
+              enemy.lastKnownPosition = null;
+            } else {
+              enemy.aim = normalize(toTarget);
+              moveDirection = { ...enemy.aim };
+            }
+          } else { // PATROL
+            target = enemy.patrol[enemy.patrolIndex];
+            const toTarget = { x: target.x - enemy.position.x, y: target.y - enemy.position.y };
+            const distToTarget = Math.hypot(toTarget.x, toTarget.y);
+            
+            enemy.aim = normalize(toTarget);
+            moveDirection = { ...enemy.aim };
+            
+            if (distToTarget < 22) {
+              enemy.patrolIndex = (enemy.patrolIndex + 1) % enemy.patrol.length;
+            }
+          }
+
+          enemy.position = moveWithCollision(enemy.position, { x: moveDirection.x * speedEnemy * dt, y: moveDirection.y * speedEnemy * dt });
+
+          // Disparo
           enemy.cooldown -= dt;
-          if (enemy.alerted && seesPlayer && enemy.cooldown <= 0) {
+          if (enemy.state === "combat" && seesPlayer && enemy.cooldown <= 0) {
             enemy.cooldown = enemy.weapon === "smg" ? .72 : enemy.weapon === "sniper" ? 2.1 : 1.25;
-            const aim = normalize({ x: s.player.x - enemy.position.x, y: s.player.y - enemy.position.y });
             s.bullets.push({
               id: s.nextBulletId++,
-              position: { x: enemy.position.x + aim.x * 23, y: enemy.position.y + aim.y * 23 },
-              velocity: { x: aim.x * 420, y: aim.y * 420 },
+              position: { x: enemy.position.x + enemy.aim.x * 23, y: enemy.position.y + enemy.aim.y * 23 },
+              velocity: { x: enemy.aim.x * 420, y: enemy.aim.y * 420 },
               team: "enemy",
               damage: enemy.weapon === "sniper" ? 45 : enemy.weapon === "smg" ? 20 : 28,
               ttl: 2.4,
