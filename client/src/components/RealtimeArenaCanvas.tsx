@@ -136,32 +136,6 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     ctx.scale(viewport.scale, viewport.scale);
   };
 
-
-
-  const visionPath = (s: Runtime) => {
-    const path = new Path2D();
-    const origin = s.player;
-    const radius = 400; // viewDist solicitado
-    const spread = Math.PI / 6; // metade do fov (Math.PI / 3)
-    const rays = 80;
-    path.moveTo(origin.x, origin.y);
-    for (let i = 0; i <= rays; i += 1) {
-      const angle = Math.atan2(s.aim.y, s.aim.x) - spread + (spread * 2 * i / rays);
-      const direction = { x: Math.cos(angle), y: Math.sin(angle) };
-      let length = radius;
-      for (let step = 12; step <= radius; step += 12) {
-        const point = { x: origin.x + direction.x * step, y: origin.y + direction.y * step };
-        if (obstacles.some((box) => circleHitsRect(point, 2, box))) {
-          length = step;
-          break;
-        }
-      }
-      path.lineTo(origin.x + direction.x * length, origin.y + direction.y * length);
-    }
-    path.closePath();
-    return path;
-  };
-
   const visibleToPlayer = (s: Runtime, position: Vec) =>
     distance(s.player, position) <= NEAR_VISION_RADIUS ||
     (distance(s.player, position) <= VISION_RADIUS && Math.abs(Math.atan2(position.y - s.player.y, position.x - s.player.x) - Math.atan2(s.aim.y, s.aim.x)) < .5 && hasLineOfSight(s.player, position));
@@ -283,31 +257,60 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     ctx.strokeRect(16, 16, WORLD.w - 32, WORLD.h - 32);
     ctx.setLineDash([]);
 
-    // --- 3. MÁSCARA DE ESCURIDÃO (FOG OF WAR COM destination-out) ---
+    // --- 3. MÁSCARA DE ESCURIDÃO (RAYCASTING 360º + EVENODD) ---
     ctx.save();
-    
-    // 3.1 Forma principal: Retângulo escuro cobrindo tudo
-    ctx.fillStyle = "rgba(12, 16, 24, 0.96)"; // Escuridão quase total
-    ctx.fillRect(0, 0, WORLD.w, WORLD.h);
+    ctx.fillStyle = "rgba(12, 16, 24, 0.96)";
+    ctx.beginPath();
 
-    // 3.2 Altera composite mode para APAGAR a escuridão
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = "rgba(0, 0, 0, 1)"; // Cor opaca para garantir remoção 100%
+    // 3.1 Retângulo cobrindo o mundo inteiro
+    ctx.rect(0, 0, WORLD.w, WORLD.h);
 
-    // 3.3 Formas subtrativas: Recortes de visão
+    // 3.2 Polígono Único de Visão
     if (s.player) {
       const p = s.player;
+      const fov = Math.PI / 3; // Abertura de 60 graus
+      const viewDist = 400;    // Alcance da lanterna
+      const proxDist = 80;     // Círculo de visão base (costas e lados)
       
-      // Recorte 1: Círculo de proximidade ao redor do player
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 80, 0, Math.PI * 2);
-      ctx.fill();
+      const playerAngle = Math.atan2(s.aim.y, s.aim.x); 
 
-      // Recorte 2: Cone da lanterna direcional (AGORA COM RAYCASTING!)
-      ctx.fill(visionPath(s));
+      const numRays = 120; // Resolução do contorno da luz
+      
+      for (let i = 0; i < numRays; i++) {
+        const angle = (i / numRays) * Math.PI * 2;
+        
+        // Normaliza a diferença de ângulo para saber se o raio está dentro da lanterna
+        let diff = Math.abs(angle - playerAngle);
+        if (diff > Math.PI) diff = Math.PI * 2 - diff;
+        
+        // Define a distância máxima do raio: viewDist se na frente, proxDist se atrás
+        const maxDist = (diff <= fov / 2) ? viewDist : proxDist;
+        
+        // Lógica de Oclusão (Raycast Stepping)
+        let actualDist = maxDist; 
+        const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+        for (let step = 12; step <= maxDist; step += 12) {
+          const point = { x: p.x + direction.x * step, y: p.y + direction.y * step };
+          if (obstacles.some((box) => circleHitsRect(point, 2, box))) {
+            actualDist = step;
+            break;
+          }
+        }
+
+        const targetX = p.x + Math.cos(angle) * actualDist;
+        const targetY = p.y + Math.sin(angle) * actualDist;
+
+        if (i === 0) {
+          ctx.moveTo(targetX, targetY);
+        } else {
+          ctx.lineTo(targetX, targetY);
+        }
+      }
+      ctx.closePath();
     }
 
-    // 3.4 Restaura o composite mode para não afetar o resto da renderização
+    // O fill evenodd recorta o polígono de visão de dentro do retângulo escuro
+    ctx.fill("evenodd");
     ctx.restore();
     // ----------------------------------------------------------------
 
