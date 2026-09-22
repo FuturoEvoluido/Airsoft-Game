@@ -136,9 +136,20 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
     ctx.scale(viewport.scale, viewport.scale);
   };
 
-  const visibleToPlayer = (s: Runtime, position: Vec) =>
-    distance(s.player, position) <= NEAR_VISION_RADIUS ||
-    (distance(s.player, position) <= VISION_RADIUS && Math.abs(Math.atan2(position.y - s.player.y, position.x - s.player.x) - Math.atan2(s.aim.y, s.aim.x)) < .5 && hasLineOfSight(s.player, position));
+  const visibleToPlayer = (s: Runtime, position: Vec) => {
+    const dist = distance(s.player, position);
+    if (dist <= 80) return true; // proxDist
+    if (dist > 400) return false; // viewDist
+    
+    const fov = Math.PI / 3;
+    const playerAngle = Math.atan2(s.aim.y, s.aim.x);
+    const angleToTarget = Math.atan2(position.y - s.player.y, position.x - s.player.x);
+    let diff = Math.abs(angleToTarget - playerAngle);
+    if (diff > Math.PI) diff = Math.PI * 2 - diff;
+    
+    if (diff > fov / 2) return false;
+    return hasLineOfSight(s.player, position);
+  };
 
   const drawScene = (ctx: CanvasRenderingContext2D, s: Runtime, visibleOnly: boolean, viewport: Viewport) => {
     // 1. Limpeza de fundo global (Fora dos limites do mapa)
@@ -201,12 +212,20 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
 
     // --- ETAPA 2: PAREDES E OBSTÁCULOS ESTILO BULLET ECHO ---
     obstacles.forEach((obs) => {
-      // 1. Sombra do obstáculo no chão (Profundidade top-down)
-      ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
-      ctx.fillRect(obs.x + 8, obs.y + 8, obs.w, obs.h);
+      // 1. Sombra projetada do obstáculo
+      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+      ctx.shadowColor = "rgba(0,0,0,0.6)";
+      ctx.shadowBlur = 15;
+      ctx.shadowOffsetX = 6;
+      ctx.shadowOffsetY = 10;
+      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
 
-      // 2. Cor de topo sólida (Bloco sólido)
-      ctx.fillStyle = "#263040";
+      // 2. Base do obstáculo (Topo)
+      ctx.fillStyle = "#263040"; 
       ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
 
       // 3. Estrutura metálica interior (Linha interna sutil)
@@ -214,41 +233,21 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
       ctx.lineWidth = 1;
       ctx.strokeRect(obs.x + 2, obs.y + 2, obs.w - 4, obs.h - 4);
 
-      // 4. Borda principal tática
-      ctx.strokeStyle = "#1C2430";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
-
-      // 5. Bisel de Luz Topo/Esquerda (Efeito de elevação 3D)
-      ctx.strokeStyle = "rgba(56, 189, 248, 0.35)"; // Azul ciano tático
+      // 4. Borda (Highlights de concreto/madeira)
+      ctx.strokeStyle = obs.kind === "concrete" ? "#506584" : "#453825";
       ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      // Linha superior
-      ctx.moveTo(obs.x, obs.y);
-      ctx.lineTo(obs.x + obs.w, obs.y);
-      // Linha esquerda
-      ctx.moveTo(obs.x, obs.y);
-      ctx.lineTo(obs.x, obs.y + obs.h);
-      ctx.stroke();
+      ctx.strokeRect(obs.x + 1, obs.y + 1, obs.w - 2, obs.h - 2);
 
-      // 6. Detalhes de cantos reforçados (Marcações táticas estilo Bullet Echo)
+      // 5. Detalhes Neon/Cyan Ciano/Neon nas bordas (Efeito Tático)
       ctx.strokeStyle = "#38BDF8";
       ctx.lineWidth = 2;
       const cornerSize = Math.min(6, obs.w / 4, obs.h / 4);
 
       // Canto Superior Esquerdo
-      ctx.beginPath();
-      ctx.moveTo(obs.x, obs.y + cornerSize);
-      ctx.lineTo(obs.x, obs.y);
-      ctx.lineTo(obs.x + cornerSize, obs.y);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(obs.x, obs.y + cornerSize); ctx.lineTo(obs.x, obs.y); ctx.lineTo(obs.x + cornerSize, obs.y); ctx.stroke();
 
       // Canto Inferior Direito
-      ctx.beginPath();
-      ctx.moveTo(obs.x + obs.w - cornerSize, obs.y + obs.h);
-      ctx.lineTo(obs.x + obs.w, obs.y + obs.h);
-      ctx.lineTo(obs.x + obs.w, obs.y + obs.h - cornerSize);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(obs.x + obs.w - cornerSize, obs.y + obs.h); ctx.lineTo(obs.x + obs.w, obs.y + obs.h); ctx.lineTo(obs.x + obs.w, obs.y + obs.h - cornerSize); ctx.stroke();
     });
 
     // Limites da Arena
@@ -259,34 +258,51 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
 
     // --- 3. MÁSCARA DE ESCURIDÃO (RAYCASTING 360º + EVENODD) ---
     ctx.save();
-    ctx.fillStyle = "rgba(12, 16, 24, 0.96)";
+    ctx.fillStyle = "rgba(15, 20, 30, 0.78)";
     ctx.beginPath();
 
     // 3.1 Retângulo cobrindo o mundo inteiro
     ctx.rect(0, 0, WORLD.w, WORLD.h);
 
-    // 3.2 Polígono Único de Visão
+    // 3.2 Polígono Único de Visão com Raycast Preciso
     if (s.player) {
       const p = s.player;
       const fov = Math.PI / 3; // Abertura de 60 graus
       const viewDist = 400;    // Alcance da lanterna
       const proxDist = 80;     // Círculo de visão base (costas e lados)
-      
       const playerAngle = Math.atan2(s.aim.y, s.aim.x); 
 
-      const numRays = 120; // Resolução do contorno da luz
-      
+      const angles: number[] = [];
+      const numRays = 120; // Resolução base do contorno
       for (let i = 0; i < numRays; i++) {
-        const angle = (i / numRays) * Math.PI * 2;
-        
-        // Normaliza a diferença de ângulo para saber se o raio está dentro da lanterna
+        angles.push((i / numRays) * Math.PI * 2);
+      }
+
+      // Adiciona vértices das bounding boxes com offset de +/- 0.0001
+      obstacles.forEach(box => {
+        const corners = [
+          { x: box.x, y: box.y },
+          { x: box.x + box.w, y: box.y },
+          { x: box.x, y: box.y + box.h },
+          { x: box.x + box.w, y: box.y + box.h }
+        ];
+        corners.forEach(corner => {
+          let angle = Math.atan2(corner.y - p.y, corner.x - p.x);
+          if (angle < 0) angle += Math.PI * 2;
+          angles.push(angle - 0.0001, angle, angle + 0.0001);
+        });
+      });
+
+      // Ordenar e remover negativos para um loop perfeito
+      const sortedAngles = angles.map(a => a < 0 ? a + Math.PI * 2 : a).sort((a, b) => a - b);
+      
+      sortedAngles.forEach((angle, i) => {
         let diff = Math.abs(angle - playerAngle);
-        if (diff > Math.PI) diff = Math.PI * 2 - diff;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        diff = Math.abs(diff);
         
-        // Define a distância máxima do raio: viewDist se na frente, proxDist se atrás
         const maxDist = (diff <= fov / 2) ? viewDist : proxDist;
         
-        // Lógica de Oclusão (Raycast Stepping)
         let actualDist = maxDist; 
         const direction = { x: Math.cos(angle), y: Math.sin(angle) };
         for (let step = 12; step <= maxDist; step += 12) {
@@ -305,7 +321,7 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
         } else {
           ctx.lineTo(targetX, targetY);
         }
-      }
+      });
       ctx.closePath();
     }
 
@@ -447,36 +463,58 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
       ctx.restore();
     }
 
+    // FUNÇÃO AUXILIAR: Desenhar operador top-down
+    const drawOperator = (x: number, y: number, angle: number, color: string, weaponLen: number) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+
+      // Sombra projetada no chão
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.shadowColor = "rgba(0,0,0,0.8)";
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 4;
+      ctx.shadowOffsetY = 6;
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Reseta shadow para o boneco não manchar
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Arma (cano projetado na direção da mira)
+      ctx.fillStyle = "#111827"; // Metal escuro
+      ctx.fillRect(8, -4, weaponLen, 8); // Arma projetando à direita
+
+      // Ombros (Elipse no eixo Y)
+      ctx.fillStyle = "#1E293B"; // Colete Tático
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 10, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Contorno do Colete
+      ctx.strokeStyle = color; // Borda Neon (Verde ou Vermelha)
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Cabeça (Círculo no centro)
+      ctx.fillStyle = "#334155"; // Capacete
+      ctx.beginPath();
+      ctx.arc(2, 0, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    };
+
     // 2. RENDERIZAÇÃO DO PLAYER OPERATOR
     if (s.player) {
       const p = s.player;
       const playerAngle = Math.atan2(s.aim.y, s.aim.x);
 
-      // Corpo do Operador Top-Down
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(playerAngle);
-
-      // Sombra no chão
-      ctx.fillStyle = "rgba(0,0,0,0.4)";
-      ctx.beginPath();
-      ctx.arc(2, 2, 16, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Borda Verde Neon de Destaque
-      ctx.strokeStyle = "#00E676";
-      ctx.lineWidth = 3;
-      ctx.fillStyle = "#1E293B";
-      ctx.beginPath();
-      ctx.arc(0, 0, 16, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Arma/Direção
-      ctx.fillStyle = "#00E676";
-      ctx.fillRect(10, -3, 10, 6);
-
-      ctx.restore();
+      drawOperator(p.x, p.y, playerAngle, "#00E676", 24);
 
       // UI do Player (Nome + HP + ARM)
       drawOperatorUI(
@@ -497,35 +535,12 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
         if (enemy.hp <= 0) return;
         const isVisible = visibleToPlayer(s, enemy.position);
 
-        // Se o inimigo estiver visível (no facho do jogador)
-        if (!visibleOnly || isVisible) {
+        // Se o inimigo estiver na visão do jogador
+        if (isVisible) {
           const enemyAim = normalize({ x: s.player.x - enemy.position.x, y: s.player.y - enemy.position.y });
           const enemyAngle = Math.atan2(enemyAim.y, enemyAim.x);
 
-          ctx.save();
-          ctx.translate(enemy.position.x, enemy.position.y);
-          ctx.rotate(enemyAngle);
-
-          // Sombra
-          ctx.fillStyle = "rgba(0,0,0,0.4)";
-          ctx.beginPath();
-          ctx.arc(2, 2, 16, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Borda Vermelha
-          ctx.strokeStyle = "#FF3366";
-          ctx.lineWidth = 3;
-          ctx.fillStyle = "#2D121B";
-          ctx.beginPath();
-          ctx.arc(0, 0, 16, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-
-          // Arma
-          ctx.fillStyle = "#FF3366";
-          ctx.fillRect(10, -3, 10, 6);
-
-          ctx.restore();
+          drawOperator(enemy.position.x, enemy.position.y, enemyAngle, "#FF3366", 24);
 
           // UI do Inimigo
           drawOperatorUI(
