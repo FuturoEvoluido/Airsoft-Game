@@ -354,11 +354,11 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
         
         let actualDist = maxDist; 
         const direction = { x: Math.cos(angle), y: Math.sin(angle) };
-        for (let step = 12; step <= maxDist; step += 12) {
-          const point = { x: p.x + direction.x * step, y: p.y + direction.y * step };
-          if (obstacles.some((box) => circleHitsRect(point, 2, box))) {
-            actualDist = step;
-            break;
+        
+        for (let j = 0; j < mapSegments.length; j++) {
+          const hit = getRayIntersection(p, direction, mapSegments[j]);
+          if (hit && hit.param > 0 && hit.param < actualDist) {
+            actualDist = hit.param;
           }
         }
 
@@ -576,6 +576,20 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
         100, // maxArmor
         true
       );
+
+      // Anel visual de som Stealth
+      const currentSpeed = Math.hypot(s.joystick.x, s.joystick.y);
+      if (currentSpeed > 0.05) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 220, 100, 0.35)";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        const noiseRadius = (currentSpeed / 1.0) * HEARING_RADIUS;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, noiseRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // 3. RENDERIZAÇÃO DOS INIMIGOS / HOSTIS
@@ -670,7 +684,7 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
       position: { x: s.player.x + direction.x * 23, y: s.player.y + direction.y * 23 },
       velocity: { x: direction.x * 650, y: direction.y * 650 },
       team: "player",
-      damage: loadout.weapon === "sniper" ? 75 : loadout.weapon === "smg" ? 28 : 45,
+      damage: 100, // Hit-Kill Tactical
       ttl: 1.8,
       sourceId: "player",
     });
@@ -832,7 +846,7 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
               position: { x: enemy.position.x + enemy.aim.x * 23, y: enemy.position.y + enemy.aim.y * 23 },
               velocity: { x: enemy.aim.x * 420, y: enemy.aim.y * 420 },
               team: "enemy",
-              damage: enemy.weapon === "sniper" ? 45 : enemy.weapon === "smg" ? 20 : 28,
+              damage: 100, // Hit-Kill Tactical
               ttl: 2.4,
               sourceId: enemy.id,
             });
@@ -860,11 +874,11 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
               if (target) {
                 alive = false;
                 s.hits += 1;
-                // Aplicação de dano na armadura primeiro, depois no HP do inimigo
+                // Sistema TTK 1-Hit/2-Hit
                 if (target.armor > 0) {
-                  target.armor = Math.max(0, target.armor - bullet.damage);
+                  target.armor = 0; // Tiro destrói o colete inteiro, HP intacto
                 } else {
-                  target.hp = Math.max(0, target.hp - bullet.damage);
+                  target.hp = 0; // Sem colete, Hit-Kill
                 }
 
                 if (target.hp <= 0) {
@@ -875,11 +889,12 @@ export default function RealtimeArenaCanvas({ loadout, rival, onFinish, onExit }
               }
             } else if (distance(bullet.position, s.player) < PLAYER_R + 6) {
               alive = false;
+              // Sistema TTK 1-Hit/2-Hit para o Jogador
               if (s.armor > 0) {
-                s.armor = Math.max(0, s.armor - bullet.damage);
+                s.armor = 0; // Perde o colete
                 setArmor(s.armor);
               } else {
-                s.hp = Math.max(0, s.hp - bullet.damage);
+                s.hp = 0; // Hit-Kill
                 setHp(s.hp);
               }
               tacticalAudio.miss();
